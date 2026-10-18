@@ -1,0 +1,5 @@
+build
+/cpppattern_test
+temp
+.cache
+.vscode
