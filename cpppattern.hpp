@@ -45,12 +45,12 @@ public:
     template <size_t I = 0, size_t N>
     static constexpr auto characterSet(const char (&pattern)[N]) {
         static_assert(N - 1 > 0, "Must have at least one character in character set");
-        return [chars = std::array(pattern)](Context& ctx) {
-            if(currentIs(ctx, chars[I], I)) {
+        return [pattern](Context& ctx) {
+            if(currentIs(ctx, pattern[I], I)) {
                 return success(ctx);
             }
             if constexpr (I + 1 < N - 1) {
-                return characterSet<I + 1>(chars)(ctx);
+                return characterSet<I + 1>(pattern)(ctx);
             } else {
                 return false;
             }
@@ -61,12 +61,12 @@ public:
     template <size_t I = 0, size_t N>
     static constexpr auto negatedSet(const char (&pattern)[N]) {
         static_assert(N - 1 > 0, "Must have at least one character in negated set");
-        return [chars = std::array(pattern)](Context& ctx) {
-            if(currentIs(ctx, chars[I], I)) {
+        return [pattern](Context& ctx) {
+            if(currentIs(ctx, pattern[I], I)) {
                 return false;
             }
             if constexpr (I + 1 < N - 1) {
-                return negatedSet<I + 1>(chars)(ctx);
+                return negatedSet<I + 1>(pattern)(ctx);
             } else {
                 return success(ctx);
             }
@@ -239,10 +239,10 @@ public:
     template <size_t I = 0, size_t N>
     static constexpr auto nonCapturingGroup(const char (&pattern)[N]) {
         static_assert(N - 1 > 0, "Must have at least one character in non-capturing group");
-        return [chars = std::array(pattern)](Context& ctx) {
-            if(currentIs(ctx, chars[I], I)) {
+        return [pattern](Context& ctx) {
+            if(currentIs(ctx, pattern[I], I)) {
                 if constexpr (I + 1 < N - 1) {
-                    return nonCapturingGroup<I + 1>(chars)(ctx);
+                    return nonCapturingGroup<I + 1>(pattern)(ctx);
                 } else {
                     return success(ctx, N - 1);
                 }
