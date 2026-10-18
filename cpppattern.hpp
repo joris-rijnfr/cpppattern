@@ -1,33 +1,28 @@
 #pragma once
 
 #include <string_view>
+#include <cassert>
 
 
 
 class Pattern {
 public:
     struct Result {
-        bool matched = false;
         size_t index = 0;
         size_t length = 0;
+        bool matched = false;
     };
 
 
     template <typename F1, typename... F2>
     static constexpr auto make(const F1& pattern, const F2&... patternRest) {
-        return [pattern, patternRest...](std::string_view text) {
-            Pattern::Context ctx { text };
+        auto matchFunction = nonCapturingGroup(pattern, patternRest...);
+        return [matchFunction](std::string_view text) {
+            Context ctx { text };
             for(ctx.result.index = 0; ctx.result.index < text.length(); ctx.result.index++) {
-                if constexpr (sizeof...(F2) == 0) {
-                    if(pattern(ctx)) {
-                        ctx.result.matched = true;
-                        return ctx.result;
-                    }
-                } else {
-                    if(all(pattern, patternRest...)(ctx)) {
-                        ctx.result.matched = true;
-                        return ctx.result;
-                    }
+                if(matchFunction(ctx)) {
+                    ctx.result.matched = true;
+                    return ctx.result;
                 }
             }
             ctx.result.index = 0;
@@ -37,55 +32,314 @@ public:
     };
 
 
-    static constexpr auto literal(std::string_view pattern) {
-        return [pattern](Context& ctx) {
-            size_t index = ctx.result.index + ctx.offset;
-            for(size_t i = 0; i < pattern.length(); i++) {
-                if(index + i >= ctx.text.length() || ctx.text[index + i] != pattern[i]) {
-                    return false;
-                }
-            }
-            ctx.result.length += pattern.length();
-            ctx.offset += pattern.length();
-            return true;
-        };
-    }
-
-
-    static constexpr auto literal(char pattern) {
+    static constexpr auto character(char pattern) {
         return [pattern](Context& ctx) {
             size_t index = ctx.result.index + ctx.offset;
             if(index < ctx.text.length() && ctx.text[index] == pattern) {
-                ctx.result.length++;
-                ctx.offset++;
-                return true;
+                return success(ctx);
             }
             return false;
         };
     }
 
 
-    template <typename F1, typename... F2>
-    static constexpr auto any(const F1& pattern, const F2&... patternRest) {
-        return [pattern, patternRest...](Context& ctx) {
-            if constexpr (sizeof...(F2) == 0) {
-                return pattern(ctx);
+    template <size_t I = 0, size_t N>
+    static constexpr auto characterSet(const char (&pattern)[N]) {
+        static_assert(N - 1 > 0, "Must have at least one character in character set");
+        return [pattern](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset + I;
+            if(index < ctx.text.length() && ctx.text[index] == pattern[I]) {
+                return success(ctx);
+            }
+            if constexpr (I + 1 < N - 1) {
+                return characterSet<I + 1>(pattern)(ctx);
             } else {
-                return pattern(ctx) || any(patternRest...)(ctx);
+                return false;
             }
         };
     }
 
 
-    template <typename F1, typename... F2>
-    static constexpr auto all(const F1& pattern, const F2&... patternRest) {
-        return [pattern, patternRest...](Context& ctx) {
-            if constexpr (sizeof...(F2) == 0) {
-                return pattern(ctx);
+    template <size_t I = 0, size_t N>
+    static constexpr auto negatedSet(const char (&pattern)[N]) {
+        static_assert(N - 1 > 0, "Must have at least one character in negated set");
+        return [pattern](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset + I;
+            if(index < ctx.text.length() && ctx.text[index] == pattern[I]) {
+                return false;
+            }
+            if constexpr (I + 1 < N - 1) {
+                return negatedSet<I + 1>(pattern)(ctx);
             } else {
-                return pattern(ctx) && all(patternRest...)(ctx);
+                return success(ctx);
             }
         };
+    }
+
+
+    static constexpr auto range(char low, char high) {
+        assert(low <= high);
+        return [low, high](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length() && isInRange(ctx.text[index], low, high)) {
+                return success(ctx);
+            }
+            return false;
+        };
+    }
+
+
+    static constexpr auto dot() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length() && ctx.text[index] != '\n' && ctx.text[index] != '\r') {
+                return success(ctx);
+            }
+            return false;
+        };
+    }
+
+
+    static constexpr auto word() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length() && isWordChar(ctx.text[index])) {
+                return success(ctx);
+            }
+            return false;
+        };
+    }
+
+
+    static constexpr auto notWord() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length() && isWordChar(ctx.text[index])) {
+                return false;
+            }
+            return success(ctx);
+        };
+    }
+
+
+    static constexpr auto digit() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length() && isInRange(ctx.text[index], '0', '9')) {
+                return success(ctx);
+            }
+            return false;
+        };
+    }
+
+
+    static constexpr auto notDigit() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length() && isInRange(ctx.text[index], '0', '9')) {
+                return false;
+            }
+            return success(ctx);
+        };
+    }
+
+
+    static constexpr auto whitespace() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length()) {
+                switch (ctx.text[index]) {
+                    case ' ':
+                    case '\t':
+                    case '\n':
+                    case '\r':
+                    case '\f':
+                    case '\v':
+                        return success(ctx);
+                }
+            }
+            return false;
+        };
+    }
+
+
+    static constexpr auto notWhitespace() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length()) {
+                switch (ctx.text[index]) {
+                    case ' ':
+                    case '\t':
+                    case '\n':
+                    case '\r':
+                    case '\f':
+                    case '\v':
+                        return false;
+                }
+                return success(ctx);
+            }
+            return false;
+        };
+    }
+
+
+    static constexpr auto beginning() {
+        return [](Context& ctx) {
+            return ctx.result.index + ctx.offset == 0;
+        };
+    }
+
+
+    static constexpr auto end() {
+        return [](Context& ctx) {
+            return ctx.result.index + ctx.offset == ctx.text.length();
+        };
+    }
+
+
+    static constexpr auto wordBoundary() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length()) {
+                if(index == 0) {
+                    return isWordChar(ctx.text[index]);
+                }
+                return isWordChar(ctx.text[index - 1]) != isWordChar(ctx.text[index]);
+            }
+            return index > 0 && isWordChar(ctx.text[index - 1]);
+        };
+    }
+
+
+    static constexpr auto notWordBoundary() {
+        return [](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset;
+            if(index < ctx.text.length()) {
+                if(index == 0) {
+                    return !isWordChar(ctx.text[index]);
+                }
+                return isWordChar(ctx.text[index - 1]) == isWordChar(ctx.text[index]);
+            }
+            return index == 0 || !isWordChar(ctx.text[index - 1]);
+        };
+    }
+
+
+    template <typename F1, typename... F2>
+    static constexpr auto nonCapturingGroup(const F1& pattern, const F2&... patternRest) {
+        if constexpr (sizeof...(F2) == 0) {
+            return pattern;
+        } else {
+            return [pattern, combined = nonCapturingGroup(patternRest...)](Context& ctx) {
+                size_t offset = ctx.offset;
+                size_t resultLength = ctx.result.length;
+                if(pattern(ctx) && combined(ctx)) {
+                    return true;
+                }
+                ctx.offset = offset;
+                ctx.result.length = resultLength;
+                return false;
+            };
+        }
+    }
+
+
+    template <size_t I = 0, size_t N>
+    static constexpr auto nonCapturingGroup(const char (&pattern)[N]) {
+        static_assert(N - 1 > 0, "Must have at least one character in non-capturing group");
+        return [pattern](Context& ctx) {
+            size_t index = ctx.result.index + ctx.offset + I;
+            if(index < ctx.text.length() && ctx.text[index] == pattern[I]) {
+                if constexpr (I + 1 < N - 1) {
+                    return nonCapturingGroup<I + 1>(pattern)(ctx);
+                } else {
+                    return success(ctx, N - 1);
+                }
+            }
+            return false;
+        };
+    }
+
+
+    template<typename F>
+    static constexpr auto plus(const F& pattern) {
+        return [pattern](Context& ctx) {
+            if(!pattern(ctx)) {
+                return false;
+            }
+            while(pattern(ctx)) { }
+            return true;
+        };
+    }
+
+
+    template<typename F>
+    static constexpr auto star(const F& pattern) {
+        return [pattern](Context& ctx) {
+            while(pattern(ctx)) { }
+            return true;
+        };
+    }
+
+
+    template<typename F>
+    static constexpr auto quantifier(size_t minimum, size_t maximum, const F& pattern) {
+        assert(minimum <= maximum);
+        return [minimum, maximum, pattern](Context& ctx) {
+            size_t offset = ctx.offset;
+            size_t resultLength = ctx.result.length;
+            for(size_t i = 0; i < minimum; i++) {
+                if(!pattern(ctx)) {
+                    ctx.offset = offset;
+                    ctx.result.length = resultLength;
+                    return false;
+                }
+            }
+            for(size_t i = 0; i < maximum - minimum; i++) {
+                if(!pattern(ctx)) {
+                    return true;
+                }
+            }
+            return true;
+        };
+    }
+
+
+    template<typename F>
+    static constexpr auto quantifier(size_t quantity, const F& pattern) {
+        return [quantity, pattern](Context& ctx) {
+            size_t offset = ctx.offset;
+            size_t resultLength = ctx.result.length;
+            for(size_t i = 0; i < quantity; i++) {
+                if(!pattern(ctx)) {
+                    ctx.offset = offset;
+                    ctx.result.length = resultLength;
+                    return false;
+                }
+            }
+            return true;
+        };
+    }
+
+
+    template<typename F>
+    static constexpr auto optional(const F& pattern) {
+        return [pattern](Context& ctx) {
+            pattern(ctx);
+            return true;
+        };
+    }
+
+
+    template <typename F1, typename... F2>
+    static constexpr auto alteration(const F1& pattern, const F2&... patternRest) {
+        if constexpr (sizeof...(F2) == 0) {
+            return pattern;
+        } else {
+            return [pattern, combined = alteration(patternRest...)](Context& ctx) {
+                return pattern(ctx) || combined(ctx);
+            };
+        }
     }
 
 
@@ -95,4 +349,21 @@ private:
         size_t offset = 0;
         Result result = {};
     };
+
+
+    inline static constexpr bool success(Context& ctx, size_t matchLength = 1) {
+        ctx.offset += matchLength;
+        ctx.result.length += matchLength;
+        return true;
+    }
+
+
+    inline static constexpr bool isInRange(char c, char low, char high) {
+        return (low <= c && c <= high);
+    }
+
+
+    inline static constexpr bool isWordChar(char c) {
+        return isInRange(c, 'A', 'Z') || isInRange(c, 'a', 'z') || isInRange(c, '0', '9') || c == '_';
+    }
 };
