@@ -23,7 +23,7 @@ public:
         Matcher(const Matcher&) = default;
         Matcher& operator=(const Matcher&) = default;
 
-    
+
         constexpr Result matchFirst(std::string_view text, size_t offset = 0) const {
             for(size_t i = offset; i < text.length(); i++) {
                 Result result = matchAt(text, i);
@@ -85,20 +85,31 @@ public:
         }
 
 
-        void printAsDOT() const {
+        constexpr bool canHaveEmptyMatches() const {
+            std::array<bool, NumStates + 1> currentStates = { false };
+            followEmptyTransitions(0, currentStates);
+            return currentStates[NumStates];
+        }
+
+
+        void printDebugInfo() const {
             std::cout << "digraph NFA {\n";
-            std::cout << "    node [shape=box, style=rounded];\n";
+            std::cout << "    rankdir=\"LR\";\n    node [shape=box, style=rounded];\n";
             for(size_t i = 0; i < states.size(); i++) {
                 State state = states[i];
                 if(state.literalTransition.hasTransition) {
-                    std::cout << "    " << i << " -> " << state.literalTransition.result << " [label=\"  '" << state.literalTransition.literal << "'  \"];\n";
+                    std::cout << "    " << i << " -> " << state.literalTransition.result << " [label=\"'" << state.literalTransition.literal << "'\"];\n";
                 }
                 for(size_t j = 0; j < state.epsilonTransitions.length; j++) {
-                    std::cout << "    " << i << " -> " << state.epsilonTransitions.elements[j] << ";\n";
+                    std::cout << "    " << i << " -> " << state.epsilonTransitions.elements[j] << " [arrowhead=\"onormal\"];\n";
                 }
             }
-            std::cout << "    " << states.size() << " [label=\"ACCEPT\",shape=circle];\n";
-            std::cout << "}\n";
+            std::cout << "    " << states.size() << " [label=\"ACCEPT\", shape=circle];\n";
+            std::cout << "}\n\n";
+            std::cout << "State size in bytes: " << sizeof(State) << "\n";
+            std::cout << "Number of states: " << NumStates << "\n";
+            std::cout << "States array size in bytes: " << sizeof(states) << "\n";
+            std::cout << "Can have empty matches? " << (canHaveEmptyMatches() ? "Yes" : "No") << "\n";
         }
 
 
@@ -135,7 +146,7 @@ public:
 
         constexpr void followEmptyTransitions(size_t stateIndex, std::array<bool, NumStates + 1>& nextStates) const {
             State state = states[stateIndex];
-            if(nextStates[stateIndex] || stateIndex == NumStates || state.epsilonTransitions.length == 0) {
+            if(state.epsilonTransitions.length == 0 || nextStates[stateIndex] || stateIndex == NumStates) {
                 return;
             }
             for(size_t i = 0; i < state.epsilonTransitions.length; i++) {
@@ -171,26 +182,48 @@ public:
     }
 
 
+    template <size_t N>
+    static constexpr auto concat(const char (&literalArray)[N]) {
+        constexpr size_t charLength = N - 1;
+        static_assert(charLength > 0, "Must have at least one literal in array");
+        Matcher<charLength> newMatcher;
+        for(size_t i = 0; i < charLength; i++) {
+            newMatcher.states[i] = {
+                {true, literalArray[i], i + 1}
+            };
+        }
+        return newMatcher;
+    }
+
+
+    template <size_t N, typename... T>
+    static constexpr auto concat(const char (&literalArray)[N], const T&... literalArrayRest) {
+        return concat(concat(literalArray), concat(literalArrayRest)...);
+    }
+
+
     template <size_t N, typename... T>
     static constexpr auto anyLongest(const Matcher<N>& matcher, const T&... matcherRest) {
         if constexpr (sizeof...(T) == 0) {
             return matcher;
         } else {
             auto combinedMatcherRest = anyLongest(matcherRest...);
-            constexpr size_t matcherSize = N + combinedMatcherRest.states.size() + 2;
+            constexpr size_t matcherSize = N + combinedMatcherRest.states.size() + 1;
             Matcher<matcherSize> newMatcher;
             newMatcher.states[0] = {
                 {},
-                { {1, N + 2}, 2 }
+                { {1, N + 1}, 2 }
             };
-            insertStatesAt(1, newMatcher, matcher);
-            newMatcher.states[N + 1] = {
-                {},
-                { {matcherSize}, 1 }
-            };
-            insertStatesAt(N + 2, newMatcher, combinedMatcherRest);
+            insertStatesAt(1, newMatcher, matcher, matcherSize);
+            insertStatesAt(N + 1, newMatcher, combinedMatcherRest);
             return newMatcher;
         }
+    }
+
+
+    template <size_t N, typename... T>
+    static constexpr auto anyLongest(const char (&literalArray)[N], const T&... literalArrayRest) {
+        return anyLongest(concat(literalArray), concat(literalArrayRest)...);
     }
 
 
@@ -203,6 +236,50 @@ public:
         };
         insertStatesAt(1, newMatcher, matcher);
         return newMatcher;
+    }
+
+
+    template <size_t N>
+    static constexpr auto optional(const char (&literalArray)[N]) {
+        return optional(concat(literalArray));
+    }
+
+
+    template <size_t N>
+    static constexpr auto repeatZeroOrMoreTimes(const Matcher<N>& matcher) {
+        Matcher<N + 2> newMatcher;
+        newMatcher.states[0] = {
+            {},
+            { {1, N + 2}, 2 }
+        };
+        insertStatesAt(1, newMatcher, matcher);
+        newMatcher.states[N + 1] = {
+            {},
+            { {1, N + 2}, 2 }
+        };
+        return newMatcher;
+    }
+
+
+    template <size_t N>
+    static constexpr auto repeatZeroOrMoreTimes(const char (&literalArray)[N]) {
+        return repeatZeroOrMoreTimes(concat(literalArray));
+    }
+
+
+    template <size_t n, size_t N>
+    static constexpr auto repeatNTimes(const Matcher<N>& matcher) {
+        Matcher<N * n> newMatcher;
+        for(size_t i = 0; i < n; i++) {
+            insertStatesAt(i * N, newMatcher, matcher);
+        }
+        return newMatcher;
+    }
+
+
+    template <size_t n, size_t N>
+    static constexpr auto repeatNTimes(const char (&literalArray)[N]) {
+        return repeatNTimes<n>(concat(literalArray));
     }
 
 
@@ -224,6 +301,43 @@ private:
                     {
                         state.epsilonTransitions.elements[0] + index,
                         state.epsilonTransitions.elements[1] + index
+                    },
+                    state.epsilonTransitions.length
+                }
+            };
+        }
+    }
+
+
+    template <size_t N1, size_t N2>
+    static constexpr void insertStatesAt(size_t index, Matcher<N1>& matcherTo, const Matcher<N2>& matcherFrom, size_t newAcceptState) {
+        if(index + N2 > N1) {
+            return;
+        }
+        for(size_t i = 0; i < N2; i++) {
+            typename Matcher<N2>::State state = matcherFrom.states[i];
+            size_t literalTransitionResult = state.literalTransition.result + index;
+            if(state.literalTransition.result == N2) {
+                literalTransitionResult = newAcceptState;
+            }
+            size_t epsilonTransitions0 = state.epsilonTransitions.elements[0] + index;
+            if(state.epsilonTransitions.elements[0] == N2) {
+                epsilonTransitions0 = newAcceptState;
+            }
+            size_t epsilonTransitions1 = state.epsilonTransitions.elements[1] + index;
+            if(state.epsilonTransitions.elements[1] == N2) {
+                epsilonTransitions1 = newAcceptState;
+            }
+            matcherTo.states[i + index] = {
+                {
+                    state.literalTransition.hasTransition,
+                    state.literalTransition.literal,
+                    literalTransitionResult
+                },
+                {
+                    {
+                        epsilonTransitions0,
+                        epsilonTransitions1
                     },
                     state.epsilonTransitions.length
                 }
