@@ -35,6 +35,17 @@ public:
         }
 
 
+        constexpr Result matchLast(std::string_view text, size_t offset = 0) const {
+            for(size_t i = offset; i < text.length(); i++) {
+                Result result = matchAt(text, text.length() - i);
+                if(result.matched) {
+                    return result;
+                }
+            }
+            return Result {};
+        }
+
+
         std::vector<Result> matchAll(std::string_view text, size_t offset = 0) const {
             std::vector<Result> results;
             for(size_t i = offset; i < text.length(); i++) {
@@ -182,23 +193,21 @@ public:
     }
 
 
-    template <size_t N>
-    static constexpr auto concat(const char (&literalArray)[N]) {
-        constexpr size_t charLength = N - 1;
-        static_assert(charLength > 0, "Must have at least one literal in array");
-        Matcher<charLength> newMatcher;
-        for(size_t i = 0; i < charLength; i++) {
-            newMatcher.states[i] = {
-                {true, literalArray[i], i + 1}
-            };
-        }
-        return newMatcher;
-    }
-
-
     template <size_t N, typename... T>
     static constexpr auto concat(const char (&literalArray)[N], const T&... literalArrayRest) {
-        return concat(concat(literalArray), concat(literalArrayRest)...);
+        if constexpr (sizeof...(T) == 0) {
+            constexpr size_t charLength = N - 1;
+            static_assert(charLength > 0, "Must have at least one literal in array");
+            Matcher<charLength> newMatcher;
+            for(size_t i = 0; i < charLength; i++) {
+                newMatcher.states[i] = {
+                    {true, literalArray[i], i + 1}
+                };
+            }
+            return newMatcher;
+        } else {
+            return concat(concat(literalArray), concat(literalArrayRest)...);
+        }
     }
 
 

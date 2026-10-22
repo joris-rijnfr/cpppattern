@@ -1,27 +1,25 @@
 #include "../cpppattern.hpp"
-#include <vector>
-#include <iostream>
+#include "./utils.hpp"
 
 
 
-// constexpr auto dogsAndCatsMatcher = Pattern::concat(
-//     Pattern::anyLongest(
-//         Pattern::concat("dog"),
-//         Pattern::concat("cat")
-//     ),
-//     Pattern::optional("s"),
-//     Pattern::repeatZeroOrMoreTimes(
-//         Pattern::concat(
-//             Pattern::concat(" and "),
-//             Pattern::anyLongest(
-//                 "dog",
-//                 "cat"
-//             ),
-//             Pattern::optional("s")
-//         )
-//     )
-// );
-
+constexpr auto dogsAndCatsMatcher = Pattern::concat(
+    Pattern::anyLongest(
+        Pattern::concat("dog"),
+        Pattern::concat("cat")
+    ),
+    Pattern::optional("s"),
+    Pattern::repeatZeroOrMoreTimes(
+        Pattern::concat(
+            Pattern::concat(" and "),
+            Pattern::anyLongest(
+                "dog",
+                "cat"
+            ),
+            Pattern::optional("s")
+        )
+    )
+);
 
 
 int main(int argc, char* argv[]) {
@@ -32,17 +30,8 @@ int main(int argc, char* argv[]) {
             text += " " + std::string(argv[i]);
         }
     }
-    constexpr auto matcher = Pattern::optional(Pattern::optional(Pattern::optional("bruh")));
+    constexpr auto& matcher = dogsAndCatsMatcher;
     matcher.printDebugInfo();
-    
-    std::cout << "\n\nText: " << text << "\n\n";
-    std::vector<Pattern::Result> results = matcher.matchAll(text);
-    if (results.empty()) {
-        std::cout << "Found no match\n";
-    } else {
-        std::cout << "Found " << results.size() << " match" << (results.size() == 1 ? "" : "es") << " in a text with " << text.length() << " character" << (text.length() == 1 ? "" : "s") << ":\n";
-        for(const Pattern::Result& result : results) {
-            std::cout << "  Index " << result.index << ", length " << result.length << ": " << text.substr(result.index, result.length) << "\n";
-        }
-    }
+
+    reportResult(matcher.matchAll(text), text);
 }
