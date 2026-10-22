@@ -1,4 +1,4 @@
-#include "../patrn.hpp"
+#include "../cpppattern.hpp"
 #include <vector>
 #include <iostream>
 
@@ -12,19 +12,19 @@ int main(int argc, char* argv[]) {
             text += " " + std::string(argv[i]);
         }
     }
-    constexpr auto matcher = Patrn::chain(
-        Patrn::character('t'),
-        Patrn::character('e'),
-        Patrn::character('s'),
-        Patrn::character('t'),
-        Patrn::optional(
-            Patrn::alteration(
-                Patrn::chain(
-                    Patrn::character('i'),
-                    Patrn::character('n'),
-                    Patrn::character('g')
+    constexpr auto matcher = Pattern::concat(
+        Pattern::literal('t'),
+        Pattern::literal('e'),
+        Pattern::literal('s'),
+        Pattern::literal('t'),
+        Pattern::optional(
+            Pattern::anyLongest(
+                Pattern::concat(
+                    Pattern::literal('i'),
+                    Pattern::literal('n'),
+                    Pattern::literal('g')
                 ),
-                Patrn::character('s')
+                Pattern::literal('s')
             )
         )
     );
@@ -32,11 +32,11 @@ int main(int argc, char* argv[]) {
     matcher.printAsDOT();
 
     std::cout<< text << "\n\n";
-    std::vector<Patrn::Result> results = matcher.matchAll(text);
+    std::vector<Pattern::Result> results = matcher.matchAll(text);
     if (results.empty()) {
         std::cout << "Found no match\n";
     } else {
-        for(const Patrn::Result& result : results) {
+        for(const Pattern::Result& result : results) {
             std::cout << "Match at index " << result.index << " with length " << result.length << ": " << text.substr(result.index, result.length) << "\n";
         }
     }
