@@ -51,7 +51,7 @@ public:
             std::array<bool, NumStates + 1> currentStates = { false };
             followEmptyTransitions(0, currentStates);
             currentStates[0] = true;
-            size_t longestMatchEnd = 0;
+            size_t longestMatchEnd = index;
             bool match = currentStates[NumStates];
             for(size_t i = index; i < text.length(); i++) {
                 std::array<bool, NumStates + 1> nextStates = { false };
