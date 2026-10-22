@@ -1,9 +1,10 @@
 #pragma once
 
-#include <string_view>
+#include <type_traits>
 #include <vector>
 #include <array>
 #include <iostream>
+#include <cassert>
 
 
 
@@ -17,16 +18,17 @@ public:
     };
 
 
-    template <size_t NumStates>
+    template <typename V, size_t NumStates>
     class Matcher {
     public:
         Matcher(const Matcher&) = default;
         Matcher& operator=(const Matcher&) = default;
 
 
-        constexpr Result matchFirst(std::string_view text, size_t offset = 0) const {
-            for(size_t i = offset; i < text.length(); i++) {
-                Result result = matchAt(text, i);
+        template <typename T>
+        constexpr Result matchFirst(const T& input, size_t offset = 0) const {
+            for(size_t i = offset; i < input.size(); i++) {
+                Result result = matchAt(input, i);
                 if(result.matched) {
                     return result;
                 }
@@ -35,9 +37,10 @@ public:
         }
 
 
-        constexpr Result matchLast(std::string_view text, size_t offset = 0) const {
-            for(size_t i = offset; i < text.length(); i++) {
-                Result result = matchAt(text, text.length() - i);
+        template <typename T>
+        constexpr Result matchLast(const T& input, size_t offset = 0) const {
+            for(size_t i = offset; i < input.size(); i++) {
+                Result result = matchAt(input, input.size() - i);
                 if(result.matched) {
                     return result;
                 }
@@ -46,10 +49,11 @@ public:
         }
 
 
-        std::vector<Result> matchAll(std::string_view text, size_t offset = 0) const {
+        template <typename T>
+        std::vector<Result> matchAll(const T& input, size_t offset = 0) const {
             std::vector<Result> results;
-            for(size_t i = offset; i < text.length(); i++) {
-                Result result = matchAt(text, i);
+            for(size_t i = offset; i < input.size(); i++) {
+                Result result = matchAt(input, i);
                 if(result.matched) {
                     results.push_back(result);
                 }
@@ -58,19 +62,20 @@ public:
         }
 
 
-        constexpr Result matchAt(std::string_view text, size_t index) const {
+        template <typename T>
+        constexpr Result matchAt(const T& input, size_t index) const {
             std::array<bool, NumStates + 1> currentStates = { false };
             followEmptyTransitions(0, currentStates);
             currentStates[0] = true;
             bool match = currentStates[NumStates];
             size_t longestMatchEnd = index;
-            for(size_t i = index; i < text.length(); i++) {
+            for(size_t i = index; i < input.size(); i++) {
                 std::array<bool, NumStates + 1> nextStates = { false };
                 bool transitionHappened = false;
-                char currentChar = text[i];
+                V currentLiteral = input[i];
                 for(size_t j = 0; j < NumStates; j++) {
                     if(currentStates[j]) {
-                        transitionHappened = followAllTransitions(j, currentChar, nextStates) || transitionHappened;
+                        transitionHappened = followAllTransitions(j, currentLiteral, nextStates) || transitionHappened;
                     }
                 }
                 if(nextStates[NumStates]) {
@@ -132,7 +137,7 @@ public:
         struct State {
             struct {
                 bool hasTransition;
-                char literal;
+                V literal;
                 size_t result;
             } literalTransition;
             struct {
@@ -144,9 +149,9 @@ public:
         std::array<State, NumStates> states = {};
 
 
-        constexpr bool followAllTransitions(size_t stateIndex, char c, std::array<bool, NumStates + 1>& nextStates) const {
+        constexpr bool followAllTransitions(size_t stateIndex, V literal, std::array<bool, NumStates + 1>& nextStates) const {
             State state = states[stateIndex];
-            if(!state.literalTransition.hasTransition || state.literalTransition.literal != c) {
+            if(!state.literalTransition.hasTransition || state.literalTransition.literal != literal) {
                 return false;
             }
             followEmptyTransitions(state.literalTransition.result, nextStates);
@@ -169,8 +174,9 @@ public:
     };
 
 
-    static constexpr auto literal(char literal) {
-        Matcher<1> matcher;
+    template <typename V>
+    static constexpr auto literal(V literal) {
+        Matcher<V, 1> matcher;
         matcher.states[0] = {
             {true, literal, 1}
         };
@@ -178,14 +184,14 @@ public:
     }
 
 
-    template <size_t N, typename... T>
-    static constexpr auto concat(const Matcher<N>& matcher, const T&... matcherRest) {
+    template <typename V, size_t N, typename... T>
+    static constexpr auto concat(const Matcher<V, N>& matcher, const T&... matcherRest) {
         if constexpr (sizeof...(T) == 0) {
             return matcher;
         } else {
             auto combinedMatcherRest = concat(matcherRest...);
             constexpr size_t matcherSize = N + combinedMatcherRest.states.size();
-            Matcher<matcherSize> newMatcher;
+            Matcher<V, matcherSize> newMatcher;
             insertStatesAt(0, newMatcher, matcher);
             insertStatesAt(N, newMatcher, combinedMatcherRest);
             return newMatcher;
@@ -193,13 +199,12 @@ public:
     }
 
 
-    template <size_t N, typename... T>
-    static constexpr auto concat(const char (&literalArray)[N], const T&... literalArrayRest) {
+    template <typename V, size_t N, typename... T>
+    static constexpr auto concat(const std::array<V, N>& literalArray, const T&... literalArrayRest) {
         if constexpr (sizeof...(T) == 0) {
-            constexpr size_t charLength = N - 1;
-            static_assert(charLength > 0, "Must have at least one literal in array");
-            Matcher<charLength> newMatcher;
-            for(size_t i = 0; i < charLength; i++) {
+            static_assert(N > 0, "Must have at least one literal in array");
+            Matcher<V, N> newMatcher;
+            for(size_t i = 0; i < N; i++) {
                 newMatcher.states[i] = {
                     {true, literalArray[i], i + 1}
                 };
@@ -211,14 +216,26 @@ public:
     }
 
 
-    template <size_t N, typename... T>
-    static constexpr auto anyLongest(const Matcher<N>& matcher, const T&... matcherRest) {
+    template <typename V, size_t N, typename... T>
+    static constexpr auto concat(const V (&literalArray)[N], const T&... literalArrayRest) {
+        constexpr size_t realLength = std::is_same_v<V, char> ? N - 1 : N;
+        static_assert(realLength > 0, "Must have at least one literal in array");
+        std::array<V, realLength> arr = {};
+        for(size_t i = 0; i < realLength; i++) {
+            arr[i] = literalArray[i];
+        }
+        return concat(arr, concat(literalArrayRest)...);
+    }
+
+
+    template <typename V, size_t N, typename... T>
+    static constexpr auto anyLongest(const Matcher<V, N>& matcher, const T&... matcherRest) {
         if constexpr (sizeof...(T) == 0) {
             return matcher;
         } else {
             auto combinedMatcherRest = anyLongest(matcherRest...);
             constexpr size_t matcherSize = N + combinedMatcherRest.states.size() + 1;
-            Matcher<matcherSize> newMatcher;
+            Matcher<V, matcherSize> newMatcher;
             newMatcher.states[0] = {
                 {},
                 { {1, N + 1}, 2 }
@@ -230,15 +247,15 @@ public:
     }
 
 
-    template <size_t N, typename... T>
-    static constexpr auto anyLongest(const char (&literalArray)[N], const T&... literalArrayRest) {
+    template <typename V, size_t N, typename... T>
+    static constexpr auto anyLongest(const V (&literalArray)[N], const T&... literalArrayRest) {
         return anyLongest(concat(literalArray), concat(literalArrayRest)...);
     }
 
 
-    template <size_t N>
-    static constexpr auto optional(const Matcher<N>& matcher) {
-        Matcher<N + 1> newMatcher;
+    template <typename V, size_t N>
+    static constexpr auto optional(const Matcher<V, N>& matcher) {
+        Matcher<V, N + 1> newMatcher;
         newMatcher.states[0] = {
             {},
             { {1, N + 1}, 2 }
@@ -248,15 +265,15 @@ public:
     }
 
 
-    template <size_t N>
-    static constexpr auto optional(const char (&literalArray)[N]) {
+    template <typename V, size_t N>
+    static constexpr auto optional(const V (&literalArray)[N]) {
         return optional(concat(literalArray));
     }
 
 
-    template <size_t N>
-    static constexpr auto repeatZeroOrMoreTimes(const Matcher<N>& matcher) {
-        Matcher<N + 2> newMatcher;
+    template <typename V, size_t N>
+    static constexpr auto repeatZeroOrMoreTimes(const Matcher<V, N>& matcher) {
+        Matcher<V, N + 2> newMatcher;
         newMatcher.states[0] = {
             {},
             { {1, N + 2}, 2 }
@@ -270,15 +287,15 @@ public:
     }
 
 
-    template <size_t N>
-    static constexpr auto repeatZeroOrMoreTimes(const char (&literalArray)[N]) {
+    template <typename V, size_t N>
+    static constexpr auto repeatZeroOrMoreTimes(const V (&literalArray)[N]) {
         return repeatZeroOrMoreTimes(concat(literalArray));
     }
 
 
-    template <size_t n, size_t N>
-    static constexpr auto repeatNTimes(const Matcher<N>& matcher) {
-        Matcher<N * n> newMatcher;
+    template <size_t n, typename V, size_t N>
+    static constexpr auto repeatNTimes(const Matcher<V, N>& matcher) {
+        Matcher<V, N * n> newMatcher;
         for(size_t i = 0; i < n; i++) {
             insertStatesAt(i * N, newMatcher, matcher);
         }
@@ -286,20 +303,18 @@ public:
     }
 
 
-    template <size_t n, size_t N>
-    static constexpr auto repeatNTimes(const char (&literalArray)[N]) {
+    template <size_t n, typename V, size_t N>
+    static constexpr auto repeatNTimes(const V (&literalArray)[N]) {
         return repeatNTimes<n>(concat(literalArray));
     }
 
 
 private:
-    template <size_t N1, size_t N2>
-    static constexpr void insertStatesAt(size_t index, Matcher<N1>& matcherTo, const Matcher<N2>& matcherFrom) {
-        if(index + N2 > N1) {
-            return;
-        }
+    template <typename V, size_t N1, size_t N2>
+    static constexpr void insertStatesAt(size_t index, Matcher<V, N1>& matcherTo, const Matcher<V, N2>& matcherFrom) {
+        assert(index + N2 <= N1);
         for(size_t i = 0; i < N2; i++) {
-            typename Matcher<N2>::State state = matcherFrom.states[i];
+            typename Matcher<V, N2>::State state = matcherFrom.states[i];
             matcherTo.states[i + index] = {
                 {
                     state.literalTransition.hasTransition,
@@ -318,13 +333,11 @@ private:
     }
 
 
-    template <size_t N1, size_t N2>
-    static constexpr void insertStatesAt(size_t index, Matcher<N1>& matcherTo, const Matcher<N2>& matcherFrom, size_t newAcceptState) {
-        if(index + N2 > N1) {
-            return;
-        }
+    template <typename V, size_t N1, size_t N2>
+    static constexpr void insertStatesAt(size_t index, Matcher<V, N1>& matcherTo, const Matcher<V, N2>& matcherFrom, size_t newAcceptState) {
+        assert(index + N2 <= N1);
         for(size_t i = 0; i < N2; i++) {
-            typename Matcher<N2>::State state = matcherFrom.states[i];
+            typename Matcher<V, N2>::State state = matcherFrom.states[i];
             size_t literalTransitionResult = state.literalTransition.result + index;
             if(state.literalTransition.result == N2) {
                 literalTransitionResult = newAcceptState;
