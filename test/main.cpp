@@ -2,23 +2,24 @@
 #include "./utils.hpp"
 
 
-constexpr auto dogsAndCatsMatcher = Pattern::concat(
-    Pattern::anyLongest(
-        Pattern::concat("dog"),
-        Pattern::concat("cat")
-    ),
-    Pattern::optional("s"),
-    Pattern::repeatZeroOrMoreTimes(
-        Pattern::concat(
-            Pattern::concat(" and "),
-            Pattern::anyLongest(
-                "dog",
-                "cat"
-            ),
-            Pattern::optional("s")
-        )
-    )
-);
+
+// constexpr auto dogsAndCatsMatcher = Pattern::concat(
+//     Pattern::anyLongest(
+//         Pattern::concat("dog"),
+//         Pattern::concat("cat")
+//     ),
+//     Pattern::optional("s"),
+//     Pattern::repeatZeroOrMoreTimes(
+//         Pattern::concat(
+//             Pattern::concat(" and "),
+//             Pattern::anyLongest(
+//                 "dog",
+//                 "cat"
+//             ),
+//             Pattern::optional("s")
+//         )
+//     )
+// );
 
 
 int main(int argc, char* argv[]) {
@@ -29,9 +30,9 @@ int main(int argc, char* argv[]) {
             text += " " + std::string(argv[i]);
         }
     }
-    constexpr auto& matcher = dogsAndCatsMatcher;
+    constexpr auto matcher = Pattern::concat(Pattern::optional("dog"), Pattern::optional("cat"));
     matcher.printDebugInfo();
 
     auto result = matcher.matchAll(text);
-    reportResult(text, result, !result.empty());
+    reportResult(text, result);
 }

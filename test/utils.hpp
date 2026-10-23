@@ -1,15 +1,16 @@
 #pragma once
 
 #include "../cpppattern.hpp"
+#include <array>
 
 
 
 template <typename Iterator>
-void reportResult(std::string_view text, Pattern::Result<Iterator> result, bool success) {
+void reportResult(std::string_view text, Pattern::Result<Iterator> result) {
     std::cout << "\n\nText: " << text << "\n\n";
-    if (success) {
+    if (result.matched) {
         std::cout << "Found a match in a text with " << text.length() << " character" << (text.length() == 1 ? "" : "s") << ":\n";
-        std::cout << "  Length " << result.length << ": " << std::string(result.start, result.start + result.length) << "\n";
+        std::cout << "  Length " << result.length << ": " << std::string(result.matchStart, result.matchStart + result.length) << "\n";
     } else {
         std::cout << "Found no match\n";
     }
@@ -17,14 +18,14 @@ void reportResult(std::string_view text, Pattern::Result<Iterator> result, bool 
 
 
 template <typename Iterator>
-void reportResult(std::string_view text, const std::vector<Pattern::Result<Iterator>>& results, bool success) {
+void reportResult(std::string_view text, const std::vector<Pattern::Result<Iterator>>& results) {
     std::cout << "\n\nText: " << text << "\n\n";
-    if (success) {
+    if (results.empty()) {
+        std::cout << "Found no match\n";
+    } else {
         std::cout << "Found " << results.size() << " match" << (results.size() == 1 ? "" : "es") << " in a text with " << text.length() << " character" << (text.length() == 1 ? "" : "s") << ":\n";
         for(Pattern::Result<Iterator> result : results) {
-            std::cout << "  Length " << result.length << ": " << std::string(result.start, result.start + result.length) << "\n";
+            std::cout << "  Length " << result.length << ": " << std::string(result.matchStart, result.matchStart + result.length) << "\n";
         }
-    } else {
-        std::cout << "Found no match\n";
     }
 }
