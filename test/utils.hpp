@@ -1,7 +1,9 @@
 #pragma once
 
-#include "../cpppattern.hpp"
-#include <array>
+#include "../src/pattern.hpp"
+#include <string>
+#include <vector>
+#include <iostream>
 
 
 
