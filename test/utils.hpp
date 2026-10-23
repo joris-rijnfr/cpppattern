@@ -4,25 +4,27 @@
 
 
 
-void reportResult(const Pattern::Result& result, std::string_view text) {
+template <typename Iterator>
+void reportResult(std::string_view text, Pattern::Result<Iterator> result, bool success) {
     std::cout << "\n\nText: " << text << "\n\n";
-    if (result.matched) {
+    if (success) {
         std::cout << "Found a match in a text with " << text.length() << " character" << (text.length() == 1 ? "" : "s") << ":\n";
-        std::cout << "  Index " << result.index << ", length " << result.length << ": " << text.substr(result.index, result.length) << "\n";
+        std::cout << "  Length " << result.length << ": " << std::string(result.start, result.start + result.length) << "\n";
     } else {
         std::cout << "Found no match\n";
     }
 }
 
 
-void reportResult(const std::vector<Pattern::Result>& results, std::string_view text) {
+template <typename Iterator>
+void reportResult(std::string_view text, const std::vector<Pattern::Result<Iterator>>& results, bool success) {
     std::cout << "\n\nText: " << text << "\n\n";
-    if (results.empty()) {
-        std::cout << "Found no match\n";
-    } else {
+    if (success) {
         std::cout << "Found " << results.size() << " match" << (results.size() == 1 ? "" : "es") << " in a text with " << text.length() << " character" << (text.length() == 1 ? "" : "s") << ":\n";
-        for(const Pattern::Result& result : results) {
-            std::cout << "  Index " << result.index << ", length " << result.length << ": " << text.substr(result.index, result.length) << "\n";
+        for(Pattern::Result<Iterator> result : results) {
+            std::cout << "  Length " << result.length << ": " << std::string(result.start, result.start + result.length) << "\n";
         }
+    } else {
+        std::cout << "Found no match\n";
     }
 }

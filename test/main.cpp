@@ -2,7 +2,6 @@
 #include "./utils.hpp"
 
 
-
 constexpr auto dogsAndCatsMatcher = Pattern::concat(
     Pattern::anyLongest(
         Pattern::concat("dog"),
@@ -33,5 +32,6 @@ int main(int argc, char* argv[]) {
     constexpr auto& matcher = dogsAndCatsMatcher;
     matcher.printDebugInfo();
 
-    reportResult(matcher.matchAll(text), text);
+    auto result = matcher.matchAll(text);
+    reportResult(text, result, !result.empty());
 }

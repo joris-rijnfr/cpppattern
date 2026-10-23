@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iterator>
 #include <type_traits>
 #include <vector>
 #include <array>
@@ -11,10 +12,10 @@
 
 class Pattern {
 public:
+    template <typename Iterator>
     struct Result {
-        size_t index = 0;
+        Iterator start{};
         size_t length = 0;
-        bool matched = false;
     };
 
 
@@ -25,36 +26,56 @@ public:
         Matcher& operator=(const Matcher&) = default;
 
 
-        template <typename T>
-        constexpr Result matchFirst(const T& input, size_t offset = 0) const {
-            for(size_t i = offset; i < input.size(); i++) {
-                Result result = matchAt(input, i);
-                if(result.matched) {
+        template <typename Iterator>
+        constexpr Result<Iterator> matchFirst(Iterator begin, Iterator end) const {
+            for(; begin != end; begin++) {
+                Result<Iterator> result = matchAt(begin, end);
+                if(result.start != end) {
                     return result;
                 }
             }
-            return Result {};
+            return Result<Iterator> { std::move(end), 0 };
         }
 
 
         template <typename T>
-        constexpr Result matchLast(const T& input, size_t offset = 0) const {
-            for(size_t i = offset; i < input.size(); i++) {
-                Result result = matchAt(input, input.size() - i);
-                if(result.matched) {
+        constexpr auto matchFirst(const T& input) const {
+            using std::begin;
+            using std::end;
+            using std::next;
+            return matchFirst(begin(input), end(input));
+        }
+
+
+        template <typename Iterator>
+        constexpr Result<Iterator> matchLast(Iterator begin, Iterator end) const {
+            Result<Iterator> current = end;
+            current--;
+            for(; current != begin; current--) {
+                Result<Iterator> result = matchAt(current, end);
+                if(result.start != end) {
                     return result;
                 }
             }
-            return Result {};
+            return Result<Iterator> { std::move(end), 0 };
         }
 
 
         template <typename T>
-        std::vector<Result> matchAll(const T& input, size_t offset = 0) const {
-            std::vector<Result> results;
-            for(size_t i = offset; i < input.size(); i++) {
-                Result result = matchAt(input, i);
-                if(result.matched) {
+        constexpr auto matchLast(const T& input) const {
+            using std::begin;
+            using std::end;
+            using std::next;
+            return matchLast(begin(input), end(input));
+        }
+
+
+        template <typename Iterator>
+        std::vector<Result<Iterator>> matchAll(Iterator begin, Iterator end) const {
+            std::vector<Result<Iterator>> results;
+            for(; begin != end; begin++) {
+                Result<Iterator> result = matchAt(begin, end);
+                if(result.start != end) {
                     results.push_back(result);
                 }
             }
@@ -63,41 +84,56 @@ public:
 
 
         template <typename T>
-        constexpr Result matchAt(const T& input, size_t index) const {
+        constexpr auto matchAll(const T& input) const {
+            using std::begin;
+            using std::end;
+            return matchAll(begin(input), end(input));
+        }
+
+
+        template <typename Iterator>
+        constexpr auto matchAt(Iterator begin, Iterator end) const {
             std::array<bool, NumStates + 1> currentStates = { false };
             followEmptyTransitions(0, currentStates);
             currentStates[0] = true;
-            bool match = currentStates[NumStates];
-            size_t longestMatchEnd = index;
-            for(size_t i = index; i < input.size(); i++) {
+            Result<Iterator> match = {
+                begin,
+                0
+            };
+            bool matched = false;
+            size_t matchLength = 0;
+            for(; begin != end; begin++) {
                 std::array<bool, NumStates + 1> nextStates = { false };
                 bool transitionHappened = false;
-                V currentLiteral = input[i];
+                matchLength++;
+                V currentLiteral = *begin;
                 for(size_t j = 0; j < NumStates; j++) {
                     if(currentStates[j]) {
                         transitionHappened = followAllTransitions(j, currentLiteral, nextStates) || transitionHappened;
                     }
                 }
                 if(nextStates[NumStates]) {
-                    match = true;
-                    longestMatchEnd = i + 1;
+                    matched = true;
+                    match.length = matchLength;
                 }
                 if(!transitionHappened) {
                     break;
                 }
                 currentStates = nextStates;
-                for(size_t j = 0; j < NumStates + 1; j++) {
-                    nextStates[j] = false;
-                }
             }
-            if(match) {
-                return Result {
-                    index,
-                    longestMatchEnd - index,
-                    true
-                };
+            if(!matched) {
+                match.start = end;
             }
-            return Result {};
+            return match;
+        }
+
+
+        template <typename T>
+        constexpr auto matchAt(const T& input, size_t index) const {
+            using std::begin;
+            using std::end;
+            using std::next;
+            return matchAt(next(begin(input), index), end(input));
         }
 
 
@@ -200,31 +236,19 @@ public:
 
 
     template <typename V, size_t N, typename... T>
-    static constexpr auto concat(const std::array<V, N>& literalArray, const T&... literalArrayRest) {
+    static constexpr auto concat(const V (&param)[N], const T&... paramRest) {
         if constexpr (sizeof...(T) == 0) {
-            static_assert(N > 0, "Must have at least one literal in array");
-            Matcher<V, N> newMatcher;
-            for(size_t i = 0; i < N; i++) {
-                newMatcher.states[i] = {
-                    {true, literalArray[i], i + 1}
+            constexpr size_t realLength = std::is_same_v<char, V> ? N - 1 : N;
+            Matcher<V, realLength> matcher;
+            for(size_t i = 0; i < realLength; i++) {
+                matcher.states[i] = {
+                    {true, param[i], i + 1}
                 };
             }
-            return newMatcher;
+            return matcher;
         } else {
-            return concat(concat(literalArray), concat(literalArrayRest)...);
+            return concat(concat(param), concat(paramRest...));
         }
-    }
-
-
-    template <typename V, size_t N, typename... T>
-    static constexpr auto concat(const V (&literalArray)[N], const T&... literalArrayRest) {
-        constexpr size_t realLength = std::is_same_v<V, char> ? N - 1 : N;
-        static_assert(realLength > 0, "Must have at least one literal in array");
-        std::array<V, realLength> arr = {};
-        for(size_t i = 0; i < realLength; i++) {
-            arr[i] = literalArray[i];
-        }
-        return concat(arr, concat(literalArrayRest)...);
     }
 
 
@@ -247,9 +271,13 @@ public:
     }
 
 
-    template <typename V, size_t N, typename... T>
-    static constexpr auto anyLongest(const V (&literalArray)[N], const T&... literalArrayRest) {
-        return anyLongest(concat(literalArray), concat(literalArrayRest)...);
+    template <typename T1, typename... T2>
+    static constexpr auto anyLongest(const T1& param, const T2&... paramRest) {
+        if constexpr (sizeof...(T2) == 0) {
+            return concat(param);
+        } else {
+            return anyLongest(concat(param), concat(paramRest)...);
+        }
     }
 
 
@@ -265,9 +293,9 @@ public:
     }
 
 
-    template <typename V, size_t N>
-    static constexpr auto optional(const V (&literalArray)[N]) {
-        return optional(concat(literalArray));
+    template <typename T>
+    static constexpr auto optional(const T& param) {
+        return optional(concat(param));
     }
 
 
@@ -287,9 +315,9 @@ public:
     }
 
 
-    template <typename V, size_t N>
-    static constexpr auto repeatZeroOrMoreTimes(const V (&literalArray)[N]) {
-        return repeatZeroOrMoreTimes(concat(literalArray));
+    template <typename T>
+    static constexpr auto repeatZeroOrMoreTimes(const T& param) {
+        return repeatZeroOrMoreTimes(concat(param));
     }
 
 
@@ -303,9 +331,9 @@ public:
     }
 
 
-    template <size_t n, typename V, size_t N>
-    static constexpr auto repeatNTimes(const V (&literalArray)[N]) {
-        return repeatNTimes<n>(concat(literalArray));
+    template <size_t n, typename T>
+    static constexpr auto repeatNTimes(const T& param) {
+        return repeatNTimes<n>(concat(param));
     }
 
 
