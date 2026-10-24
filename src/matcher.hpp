@@ -264,11 +264,17 @@ private:
 
 
     constexpr bool tryAddEpsilon(size_t index, size_t to) {
-        if(states[index].epsilonTransitions.length < 2) {
-            states[index].epsilonTransitions.elements[states[index].epsilonTransitions.length] = to;
-            states[index].epsilonTransitions.length++;
+        if(auto& epsilonTransitions = states[index].epsilonTransitions; epsilonTransitions.length < 2) {
+            epsilonTransitions.elements[epsilonTransitions.length] = to;
+            epsilonTransitions.length++;
             return true;
         }
         return false;
+    }
+
+
+    constexpr bool hasEpsilonTransitions(size_t index, size_t to1, size_t to2) {
+        auto epsilonTransitions = states[index].epsilonTransitions;
+        return epsilonTransitions.length == 2 && epsilonTransitions.elements[0] == to1 && epsilonTransitions.elements[1] == to2;
     }
 };

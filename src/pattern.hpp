@@ -50,7 +50,7 @@ public:
 
 
     template <typename V, size_t N, typename... T>
-    static constexpr auto concat(const V (&param)[N], T&... paramRest) {
+    static constexpr auto concat(const V (&param)[N], const T&... paramRest) {
         if constexpr (sizeof...(T) == 0) {
             constexpr size_t length = std::is_same_v<char, V> ? N - 1 : N;
             Matcher<V, length> matcher;
@@ -112,16 +112,19 @@ public:
     template <typename V, size_t N>
     static constexpr auto repeatZeroOrMoreTimes(const Matcher<V, N>& matcher) {
         Matcher<V, N + 2> newMatcher(matcher);
-        if(!newMatcher.canHaveEmptyMatches() && !newMatcher.tryAddEpsilon(0, newMatcher.size)) {
+        bool shouldAddRepeatState = !newMatcher.hasEpsilonTransitions(newMatcher.size - 1, 0, newMatcher.size);
+        if(size_t repeatStateIndex = shouldAddRepeatState ? newMatcher.size : newMatcher.size - 1; !newMatcher.canHaveEmptyMatches() && !newMatcher.tryAddEpsilon(0, repeatStateIndex)) {
             newMatcher.insertState(0, {
                 {},
-                { {1, newMatcher.size + 1}, 2 }
+                { {1, repeatStateIndex + 1}, 2 }
             });
         }
-        newMatcher.pushState({
-            {},
-            { {0, newMatcher.size + 1}, 2 }
-        });
+        if(shouldAddRepeatState) {
+            newMatcher.pushState({
+                {},
+                { {0, newMatcher.size + 1}, 2 }
+            });
+        }
         return newMatcher;
     }
 
