@@ -12,9 +12,6 @@ class Pattern::Matcher {
 public:
     friend class Pattern;
 
-    Matcher(const Matcher&) = default;
-    Matcher& operator=(const Matcher&) = default;
-
 
     template <typename Iterator>
     constexpr Result<Iterator> matchFirst(Iterator begin, Iterator end) const {
@@ -141,16 +138,20 @@ public:
 
 private:
     constexpr Matcher() = default;
+    constexpr Matcher(const Matcher&) = default;
+    constexpr Matcher(Matcher&&) noexcept = default;
+    constexpr Matcher& operator=(const Matcher&) = default;
+    constexpr Matcher& operator=(Matcher&&) noexcept = default;
 
-    template <typename T, size_t N>
-    explicit constexpr Matcher(const Matcher<T, N>& matcher)
-        : size(matcher.size){
-        static_assert(std::is_same_v<T, V>, "Matcher types must be the same");
+
+    template <size_t N>
+    explicit constexpr Matcher(const Matcher<V, N>& matcher) : size(matcher.size) {
         static_assert(N <= Capacity, "Matcher capacity must be equal or greater than given matcher");
         for(size_t i = 0; i < matcher.size; i++) {
             states[i] = matcher.states[i];
         }
     }
+
 
     std::array<State<V>, Capacity> states = {};
     size_t size = 0;
@@ -230,8 +231,8 @@ private:
     }
 
 
-    template <typename T, size_t N>
-    constexpr void pushStates(const Matcher<T, N>& matcher) {
+    template <size_t N>
+    constexpr void pushStates(const Matcher<V, N>& matcher) {
         for(size_t i = 0; i < matcher.size; i++) {
             setState(size + i, matcher.states[i], size);
         }

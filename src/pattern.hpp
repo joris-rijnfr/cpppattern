@@ -11,6 +11,12 @@ public:
     class Matcher;
 
 
+    Pattern(const Pattern&) = delete;
+    Pattern(Pattern&&) = delete;
+    Pattern& operator=(const Pattern&) = delete;
+    Pattern& operator=(Pattern&&) = delete;
+
+
     template <typename Iterator>
     struct Result {
         Iterator matchStart{};
