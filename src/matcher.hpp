@@ -116,13 +116,13 @@ public:
     void printDebugInfo() const {
         std::cout << "digraph NFA {\n";
         std::cout << "    rankdir=\"LR\";\n    node [shape=box, style=rounded];\n";
-        for(size_t i = 0; i < states.size(); i++) {
+        for(StateIndex i = 0; i < states.size(); i++) {
             State state = states[i];
-            if(state.literalTransition.hasTransition) {
-                std::cout << "    " << i << " -> " << state.literalTransition.result << " [label=\"'" << state.literalTransition.literal << "'\"];\n";
+            if(state.literalTarget != NO_STATE) {
+                std::cout << "    " << i << " -> " << state.literalTarget << " [label=\"'" << state.literal << "'\"];\n";
             }
-            for(size_t j = 0; j < state.epsilonTransitions.length; j++) {
-                std::cout << "    " << i << " -> " << state.epsilonTransitions.elements[j] << " [arrowhead=\"onormal\"];\n";
+            for(EpsilonSize j = 0; j < state.epsilonSize; j++) {
+                std::cout << "    " << i << " -> " << state.epsilon[j] << " [arrowhead=\"onormal\"];\n";
             }
         }
         std::cout << "    " << size << " [label=\"ACCEPT\", shape=circle];\n";
@@ -147,14 +147,14 @@ private:
     template <size_t N>
     explicit constexpr Matcher(const Matcher<V, N>& matcher) : size(matcher.size) {
         static_assert(N <= Capacity, "Matcher capacity must be equal or greater than given matcher");
-        for(size_t i = 0; i < matcher.size; i++) {
+        for(StateIndex i = 0; i < matcher.size; i++) {
             states[i] = matcher.states[i];
         }
     }
 
 
     std::array<State<V>, Capacity> states = {};
-    size_t size = 0;
+    StateIndex size = 0;
 
 
     template <typename Iterator>
@@ -168,7 +168,7 @@ private:
             std::array<bool, Capacity + 1> nextStates = { false };
             bool transitionHappened = false;
             V currentLiteral = *begin;
-            for(size_t j = 0; j < size; j++) {
+            for(StateIndex j = 0; j < size; j++) {
                 if(currentStates[j]) {
                     transitionHappened = followAllTransitions(j, currentLiteral, nextStates) || transitionHappened;
                 }
@@ -189,35 +189,34 @@ private:
     }
 
 
-    constexpr bool followAllTransitions(size_t stateIndex, V literal, std::array<bool, Capacity + 1>& nextStates) const {
-        State state = states[stateIndex];
-        if(!state.literalTransition.hasTransition || state.literalTransition.literal != literal) {
+    constexpr bool followAllTransitions(StateIndex index, V literal, std::array<bool, Capacity + 1>& nextStates) const {
+        State state = states[index];
+        if(state.literalTarget == NO_STATE || state.literal != literal) {
             return false;
         }
-        followEmptyTransitions(state.literalTransition.result, nextStates);
-        nextStates[state.literalTransition.result] = true;
+        followEmptyTransitions(state.literalTarget, nextStates);
+        nextStates[state.literalTarget] = true;
         return true;
     }
 
 
-    constexpr void followEmptyTransitions(size_t stateIndex, std::array<bool, Capacity + 1>& nextStates) const {
-        State state = states[stateIndex];
-        if(nextStates[stateIndex]) {
+    constexpr void followEmptyTransitions(StateIndex index, std::array<bool, Capacity + 1>& nextStates) const {
+        State state = states[index];
+        if(nextStates[index]) {
             return;
         }
-        nextStates[stateIndex] = true;
-        if(stateIndex == size) {
+        nextStates[index] = true;
+        if(index == size) {
             return;
         }
-        for(size_t i = 0; i < state.epsilonTransitions.length; i++) {
-            size_t nextStateIndex = state.epsilonTransitions.elements[i];
-            followEmptyTransitions(nextStateIndex, nextStates);
+        for(EpsilonSize i = 0; i < state.epsilonSize; i++) {
+            followEmptyTransitions(state.epsilon[i], nextStates);
         }
     }
 
 
-    constexpr void insertState(size_t index, const State<V> &state) {
-        for(size_t i = 0; i < size - index; i++) {
+    constexpr void insertState(StateIndex index, const State<V> &state) {
+        for(StateIndex i = 0; i < size - index; i++) {
             setState(size - i, states[size - i - 1], 1);
         }
         setState(index, state, index);
@@ -233,48 +232,72 @@ private:
 
     template <size_t N>
     constexpr void pushStates(const Matcher<V, N>& matcher) {
-        for(size_t i = 0; i < matcher.size; i++) {
+        for(StateIndex i = 0; i < matcher.size; i++) {
             setState(size + i, matcher.states[i], size);
         }
         size += matcher.size;
     }
 
 
-    constexpr void setState(size_t index, const State<V>& state, size_t transitionOffset = 0) {
-        states[index] = state;
-        states[index].literalTransition.result += transitionOffset;
-        states[index].epsilonTransitions.elements[0] += transitionOffset;
-        states[index].epsilonTransitions.elements[1] += transitionOffset;
+    constexpr void setState(StateIndex index, const State<V>& state, StateIndex transitionOffset = 0) {
+        State<V>& thisState = states[index];
+        thisState = state;
+        if(thisState.literalTarget != NO_STATE) {
+            thisState.literalTarget += transitionOffset;
+        }
+        EpsilonSize numberOfTransitions = thisState.epsilonSize;
+        for(EpsilonSize i = 0; i < numberOfTransitions; i++) {
+            thisState.epsilon[i] += transitionOffset;
+        }
     }
 
 
-    constexpr void updateTransitions(size_t currentIndex, size_t newIndex) {
+    constexpr void updateTransitions(StateIndex currentIndex, StateIndex newIndex) {
         for(State<V>& state : states) {
-            if(state.literalTransition.result == currentIndex) {
-                state.literalTransition.result = newIndex;
+            if(state.literalTarget == currentIndex) {
+                state.literalTarget = newIndex;
             }
-            if(state.epsilonTransitions.elements[0] == currentIndex) {
-                state.epsilonTransitions.elements[0] = newIndex;
-            }
-            if(state.epsilonTransitions.elements[1] == currentIndex) {
-                state.epsilonTransitions.elements[1] = newIndex;
+            EpsilonSize numberOfTransitions = state.epsilonSize;
+            for(EpsilonSize i = 0; i < numberOfTransitions; i++) {
+                if(state.epsilon[i] == currentIndex) {
+                    state.epsilon[i] = newIndex;
+                }
             }
         }
     }
 
 
-    constexpr bool tryAddEpsilon(size_t index, size_t to) {
-        if(auto& epsilonTransitions = states[index].epsilonTransitions; epsilonTransitions.length < 2) {
-            epsilonTransitions.elements[epsilonTransitions.length] = to;
-            epsilonTransitions.length++;
+    constexpr bool tryAddEpsilon(StateIndex index, StateIndex to) {
+        if(State<V>& state = states[index]; state.epsilonSize < MaxEpsilon) {
+            state.epsilon[state.epsilonSize] = to;
+            state.epsilonSize++;
             return true;
         }
         return false;
     }
 
 
-    constexpr bool hasEpsilonTransitions(size_t index, size_t to1, size_t to2) {
-        auto epsilonTransitions = states[index].epsilonTransitions;
-        return epsilonTransitions.length == 2 && epsilonTransitions.elements[0] == to1 && epsilonTransitions.elements[1] == to2;
+    template <size_t N>
+    constexpr bool hasEpsilonTransitionsToTargets(StateIndex index, const StateIndex (&targets)[N]) {
+        if constexpr (N > MaxEpsilon) {
+            return false;
+        }
+        State<V> state = states[index];
+        std::array<bool, N> seen = {false};
+        EpsilonSize leftToBeSeen = N;
+        for(EpsilonSize i = 0; i < state.epsilonSize; i++) {
+            StateIndex target = state.epsilon[i];
+            for(size_t j = 0; j < N; j++) {
+                if(target == targets[j] && !seen[j]) {
+                    seen[j] = true;
+                    leftToBeSeen--;
+                    break;
+                }
+            }
+            if(leftToBeSeen == 0) {
+                return true;
+            }
+        }
+        return leftToBeSeen == 0;
     }
 };

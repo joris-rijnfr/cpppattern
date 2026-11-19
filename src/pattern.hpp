@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <array>
+#include <cstdint>
 
 
 
@@ -28,9 +29,7 @@ public:
     template <typename V>
     static constexpr auto literal(V literal) {
         Matcher<V, 1> matcher;
-        matcher.states[0] = {
-            {true, literal, 1}
-        };
+        matcher.pushState({ literal, 1 });
         return matcher;
     }
 
@@ -54,10 +53,8 @@ public:
         if constexpr (sizeof...(T) == 0) {
             constexpr size_t length = std::is_same_v<char, V> ? N - 1 : N;
             Matcher<V, length> matcher;
-            for(size_t i = 0; i < length; i++) {
-                matcher.pushState({
-                    {true, param[i], i + 1}
-                });
+            for(StateIndex i = 0; i < length; i++) {
+                matcher.pushState({ param[i], i + 1 });
             }
             return matcher;
         } else {
@@ -72,7 +69,7 @@ public:
             return matcher;
         } else {
             auto combinedMatcherRest = anyLongest(matcherRest...);
-            if(matcher.states[0].epsilonTransitions.length > combinedMatcherRest.states[0].epsilonTransitions.length) {
+            if(matcher.states[0].epsilonSize > combinedMatcherRest.states[0].epsilonSize) {
                 return combineAnyLongest(matcher, combinedMatcherRest);
             }
             return combineAnyLongest(combinedMatcherRest, matcher);
@@ -94,10 +91,7 @@ public:
     static constexpr auto optional(const Matcher<V, N>& matcher) {
         Matcher<V, N + 1> newMatcher(matcher);
         if(!newMatcher.canHaveEmptyMatches() && !newMatcher.tryAddEpsilon(0, newMatcher.size)) {
-            newMatcher.insertState(0, {
-                {},
-                { {1, newMatcher.size + 1}, 2 }
-            });
+            newMatcher.insertState(0, { {}, NO_STATE, 2, {1, newMatcher.size + 1} });
         }
         return newMatcher;
     }
@@ -112,18 +106,12 @@ public:
     template <typename V, size_t N>
     static constexpr auto repeatZeroOrMoreTimes(const Matcher<V, N>& matcher) {
         Matcher<V, N + 2> newMatcher(matcher);
-        bool shouldAddRepeatState = !newMatcher.hasEpsilonTransitions(newMatcher.size - 1, 0, newMatcher.size);
-        if(size_t repeatStateIndex = shouldAddRepeatState ? newMatcher.size : newMatcher.size - 1; !newMatcher.canHaveEmptyMatches() && !newMatcher.tryAddEpsilon(0, repeatStateIndex)) {
-            newMatcher.insertState(0, {
-                {},
-                { {1, repeatStateIndex + 1}, 2 }
-            });
+        bool shouldAddRepeatState = !newMatcher.hasEpsilonTransitionsToTargets(newMatcher.size - 1, {0, newMatcher.size});
+        if(StateIndex repeatState = shouldAddRepeatState ? newMatcher.size : newMatcher.size - 1; !newMatcher.canHaveEmptyMatches() && !newMatcher.tryAddEpsilon(0, repeatState)) {
+            newMatcher.insertState(0, { {}, NO_STATE, 2, {1, repeatState + 1} });
         }
         if(shouldAddRepeatState) {
-            newMatcher.pushState({
-                {},
-                { {0, newMatcher.size + 1}, 2 }
-            });
+            newMatcher.pushState({ {}, NO_STATE, 2, {0, newMatcher.size + 1} });
         }
         return newMatcher;
     }
@@ -152,31 +140,28 @@ public:
 
 
 private:
+    using StateIndex = uint32_t;
+    inline static constexpr StateIndex NO_STATE = UINT32_MAX;
+    inline static constexpr size_t MaxEpsilon = 2;
+    using EpsilonSize = uint8_t;
+
     template <typename V>
     struct State {
-        struct {
-            bool hasTransition;
-            V literal;
-            size_t result;
-        } literalTransition;
-        struct {
-            std::array<size_t, 2> elements;
-            size_t length = 0;
-        } epsilonTransitions = {};
+        V literal;
+        StateIndex literalTarget = NO_STATE;
+        EpsilonSize epsilonSize = 0;
+        std::array<StateIndex, MaxEpsilon> epsilon = { NO_STATE };
     };
 
 
-    template <typename V, size_t N1, size_t N2, template <typename, size_t> typename M>
-    static constexpr auto combineAnyLongest(const M<V, N1>& a, const M<V, N2>& b) {
-        M<V, N1 + N2 + 1> newMatcher;
+    template <typename V, size_t N1, size_t N2>
+    static constexpr auto combineAnyLongest(const Matcher<V, N1>& a, const Matcher<V, N2>& b) {
+        Matcher<V, N1 + N2 + 1> newMatcher;
         newMatcher.pushStates(a);
         newMatcher.pushStates(b);
         newMatcher.updateTransitions(a.size, newMatcher.size);
         if(!newMatcher.tryAddEpsilon(0, a.size)) {
-            newMatcher.insertState(0, {
-                {},
-                { {1, newMatcher.size + 1}, 2 }
-            });
+            newMatcher.insertState(0, { {}, NO_STATE, 2, {1, newMatcher.size + 1} });
         }
         return newMatcher;
     }
