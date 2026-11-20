@@ -30,10 +30,17 @@ def include_file(path):
     content += "// End " + path_str + "\n\n"
 
 
+in_do_not_include_block = False
 def handle_line(line, path):
-    global content
+    global content, in_do_not_include_block
     stripped_line = line.strip()
-    if stripped_line == "" or stripped_line == "#pragma once":
+    if stripped_line == "/*** BEGIN - NOT IN SINGLE HEADER ***/":
+        in_do_not_include_block = True
+        return
+    if stripped_line == "/*** END - NOT IN SINGLE HEADER ***/":
+        in_do_not_include_block = False
+        return
+    if in_do_not_include_block or stripped_line == "" or stripped_line == "#pragma once":
         return
     result_include = re.search("^#include\\s+\"(.+)\"$", stripped_line)
     if result_include != None:

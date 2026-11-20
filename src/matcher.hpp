@@ -1,8 +1,10 @@
 #pragma once
 
+/*** BEGIN - NOT IN SINGLE HEADER ***/
+#include <iostream>
+/*** END - NOT IN SINGLE HEADER ***/
 #include <vector>
 #include <array>
-#include <iostream>
 #include "./pattern.hpp"
 
 
@@ -113,6 +115,7 @@ public:
     }
 
 
+    /*** BEGIN - NOT IN SINGLE HEADER ***/
     void printDebugInfo() const {
         std::cout << "digraph NFA {\n";
         std::cout << "    rankdir=\"LR\";\n    node [shape=box, style=rounded];\n";
@@ -134,6 +137,7 @@ public:
         std::cout << "Wasted space on unfilled capacity:  " << (sizeof(states) - (sizeof(State<V>) * size)) << " bytes\n";
         std::cout << "Can have empty matches?             " << (canHaveEmptyMatches() ? "Yes" : "No") << "\n";
     }
+    /*** END - NOT IN SINGLE HEADER ***/
 
 
 private:
