@@ -49,27 +49,25 @@ public:
 
 
     template <typename V, size_t N, typename... T>
-    static constexpr auto concat(const V (&param)[N], const T&... rest) {
-        if constexpr (sizeof...(T) == 0) {
-            constexpr size_t length = std::is_same_v<char, V> ? N - 1 : N;
-            Matcher<V, length> matcher;
-            for(StateIndex i = 0; i < length; i++) {
-                matcher.pushState({ param[i], i + 1 });
-            }
-            return matcher;
-        } else {
-            return concat(concat(param), rest...);
+    static constexpr auto concat(const std::array<V, N>& param, const T&... rest) {
+        Matcher<V, N> matcher;
+        for(StateIndex i = 0; i < N; i++) {
+            matcher.pushState({ param[i], i + 1 });
         }
+        return concat(matcher, rest...);
+    }
+
+
+    template <typename V, size_t N, typename... T>
+    static constexpr auto concat(const V (&param)[N], const T&... rest) {
+        constexpr size_t length = std::is_same_v<char, V> ? N - 1 : N;
+        return concat(toStdArray<V, N, length>(param, std::make_index_sequence<length>{}), rest...);
     }
 
 
     template <typename V, typename... T>
     static constexpr auto concat(const V param, const T&... rest) {
-        if constexpr (sizeof...(T) == 0) {
-            return literal(param);
-        } else {
-            return concat(literal(param), rest...);
-        }
+        return concat(literal(param), rest...);
     }
 
 
@@ -88,22 +86,20 @@ public:
 
 
     template <typename V, size_t N, typename... T>
+    static constexpr auto anyLongest(const std::array<V, N>& param, const T&... rest) {
+        return anyLongest(concat(param), rest...);
+    }
+
+
+    template <typename V, size_t N, typename... T>
     static constexpr auto anyLongest(const V (&param)[N], const T&... rest) {
-        if constexpr (sizeof...(T) == 0) {
-            return concat(param);
-        } else {
-            return anyLongest(concat(param), rest...);
-        }
+        return anyLongest(concat(param), rest...);
     }
 
 
     template <typename V, typename... T>
     static constexpr auto anyLongest(const V param, const T&... rest) {
-        if constexpr (sizeof...(T) == 0) {
-            return literal(param);
-        } else {
-            return anyLongest(literal(param), rest...);
-        }
+        return anyLongest(literal(param), rest...);
     }
 
 
@@ -114,6 +110,12 @@ public:
             newMatcher.insertState(0, { {}, NO_STATE, 2, {1, newMatcher.size + 1} });
         }
         return newMatcher;
+    }
+
+
+    template <typename V, size_t N>
+    static constexpr auto optional(const std::array<V, N>& param) {
+        return optional(concat(param));
     }
 
 
@@ -144,6 +146,12 @@ public:
 
 
     template <typename V, size_t N>
+    static constexpr auto repeatZeroOrMoreTimes(const std::array<V, N>& param) {
+        return repeatZeroOrMoreTimes(concat(param));
+    }
+
+
+    template <typename V, size_t N>
     static constexpr auto repeatZeroOrMoreTimes(const V (&param)[N]) {
         return repeatZeroOrMoreTimes(concat(param));
     }
@@ -162,6 +170,12 @@ public:
             newMatcher.pushStates(matcher);
         }
         return newMatcher;
+    }
+
+
+    template <size_t n, typename V, size_t N>
+    static constexpr auto repeatNTimes(const std::array<V, N>& param) {
+        return repeatNTimes<n>(concat(param));
     }
 
 
@@ -190,6 +204,12 @@ private:
         EpsilonSize epsilonSize = 0;
         std::array<StateIndex, MaxEpsilon> epsilon = { NO_STATE };
     };
+
+
+    template <typename V, size_t N, size_t Length, size_t... I>
+    static constexpr auto toStdArray(const V (&param)[N], std::index_sequence<I...>) {
+        return std::array<V, Length>{ param[I]... };
+    }
 
 
     template <typename V, size_t N1, size_t N2>

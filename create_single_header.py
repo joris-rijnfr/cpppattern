@@ -7,7 +7,7 @@ output_path = ["cpppattern.hpp"]
 version = "0.1.0"
 
 content = f"""// Copyright (c) 2026 Joris Rijnfrank
-// Licensed under the MIT License. 
+// Licensed under the MIT License.
 // See https://github.com/joris-rijnfr/cpppattern/blob/main/LICENSE
 
 // Version: {version}
