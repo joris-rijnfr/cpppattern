@@ -4,7 +4,17 @@ import re
 
 entry_path = ["src", "matcher.hpp"]
 output_path = ["cpppattern.hpp"]
-content = "/* https://github.com/joris-rijnfr/cpppattern */\n#pragma once\n"
+version = "0.1.0"
+
+content = f"""// Copyright (c) 2026 Joris Rijnfrank
+// Licensed under the MIT License. 
+// See https://github.com/joris-rijnfr/cpppattern/blob/main/LICENSE
+
+// Version: {version}
+// Source: https://github.com/joris-rijnfr/cpppattern
+
+#pragma once
+"""
 
 
 def main():
