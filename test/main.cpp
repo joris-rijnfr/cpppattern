@@ -8,7 +8,7 @@ constexpr auto dogsAndCatsMatcher = Pattern::concat(
         Pattern::concat("dog"),
         Pattern::concat("cat")
     ),
-    Pattern::optional("s"),
+    Pattern::optional('s'),
     Pattern::repeatZeroOrMoreTimes(
         Pattern::concat(
             Pattern::concat(" and "),
@@ -16,7 +16,7 @@ constexpr auto dogsAndCatsMatcher = Pattern::concat(
                 "dog",
                 "cat"
             ),
-            Pattern::optional("s")
+            Pattern::optional('s')
         )
     )
 );

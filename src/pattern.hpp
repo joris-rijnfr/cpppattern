@@ -27,7 +27,7 @@ public:
 
 
     template <typename V>
-    static constexpr auto literal(V literal) {
+    static constexpr auto literal(const V literal) {
         Matcher<V, 1> matcher;
         matcher.pushState({ literal, 1 });
         return matcher;
@@ -35,11 +35,11 @@ public:
 
 
     template <typename V, size_t N, typename... T>
-    static constexpr auto concat(const Matcher<V, N>& matcher, const T&... matcherRest) {
+    static constexpr auto concat(const Matcher<V, N>& matcher, const T&... rest) {
         if constexpr (sizeof...(T) == 0) {
             return matcher;
         } else {
-            auto combinedMatcherRest = concat(matcherRest...);
+            auto combinedMatcherRest = concat(rest...);
             constexpr size_t matcherCapacity = N + combinedMatcherRest.states.size();
             Matcher<V, matcherCapacity> newMatcher(matcher);
             newMatcher.pushStates(combinedMatcherRest);
@@ -49,7 +49,7 @@ public:
 
 
     template <typename V, size_t N, typename... T>
-    static constexpr auto concat(const V (&param)[N], const T&... paramRest) {
+    static constexpr auto concat(const V (&param)[N], const T&... rest) {
         if constexpr (sizeof...(T) == 0) {
             constexpr size_t length = std::is_same_v<char, V> ? N - 1 : N;
             Matcher<V, length> matcher;
@@ -58,17 +58,27 @@ public:
             }
             return matcher;
         } else {
-            return concat(concat(param), concat(paramRest...));
+            return concat(concat(param), rest...);
+        }
+    }
+
+
+    template <typename V, typename... T>
+    static constexpr auto concat(const V param, const T&... rest) {
+        if constexpr (sizeof...(T) == 0) {
+            return literal(param);
+        } else {
+            return concat(literal(param), rest...);
         }
     }
 
 
     template <typename V, size_t N, typename... T>
-    static constexpr auto anyLongest(const Matcher<V, N>& matcher, const T&... matcherRest) {
+    static constexpr auto anyLongest(const Matcher<V, N>& matcher, const T&... rest) {
         if constexpr (sizeof...(T) == 0) {
             return matcher;
         } else {
-            auto combinedMatcherRest = anyLongest(matcherRest...);
+            auto combinedMatcherRest = anyLongest(rest...);
             if(matcher.states[0].epsilonSize > combinedMatcherRest.states[0].epsilonSize) {
                 return combineAnyLongest(matcher, combinedMatcherRest);
             }
@@ -78,11 +88,21 @@ public:
 
 
     template <typename V, size_t N, typename... T>
-    static constexpr auto anyLongest(const V (&param)[N], const T&... paramRest) {
+    static constexpr auto anyLongest(const V (&param)[N], const T&... rest) {
         if constexpr (sizeof...(T) == 0) {
             return concat(param);
         } else {
-            return anyLongest(concat(param), concat(paramRest)...);
+            return anyLongest(concat(param), rest...);
+        }
+    }
+
+
+    template <typename V, typename... T>
+    static constexpr auto anyLongest(const V param, const T&... rest) {
+        if constexpr (sizeof...(T) == 0) {
+            return literal(param);
+        } else {
+            return anyLongest(literal(param), rest...);
         }
     }
 
@@ -100,6 +120,12 @@ public:
     template <typename V, size_t N>
     static constexpr auto optional(const V (&param)[N]) {
         return optional(concat(param));
+    }
+
+
+    template <typename V>
+    static constexpr auto optional(const V param) {
+        return optional(literal(param));
     }
 
 
@@ -123,6 +149,12 @@ public:
     }
 
 
+    template <typename V>
+    static constexpr auto repeatZeroOrMoreTimes(const V param) {
+        return repeatZeroOrMoreTimes(literal(param));
+    }
+
+
     template <size_t n, typename V, size_t N>
     static constexpr auto repeatNTimes(const Matcher<V, N>& matcher) {
         Matcher<V, N * n> newMatcher(matcher);
@@ -136,6 +168,12 @@ public:
     template <size_t n, typename V, size_t N>
     static constexpr auto repeatNTimes(const V (&param)[N]) {
         return repeatNTimes<n>(concat(param));
+    }
+
+
+    template <size_t n, typename V>
+    static constexpr auto repeatNTimes(const V param) {
+        return repeatNTimes<n>(literal(param));
     }
 
 
@@ -161,7 +199,7 @@ private:
         newMatcher.pushStates(b);
         newMatcher.updateTransitions(a.size, newMatcher.size);
         if(!newMatcher.tryAddEpsilon(0, a.size)) {
-            newMatcher.insertState(0, { {}, NO_STATE, 2, {1, newMatcher.size + 1} });
+            newMatcher.insertState(0, { {}, NO_STATE, 2, {1, a.size + 1} });
         }
         return newMatcher;
     }
