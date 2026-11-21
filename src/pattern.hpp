@@ -27,9 +27,9 @@ public:
 
 
     template <typename V>
-    static constexpr auto literal(const V literal) {
+    static constexpr auto literal(const V value) {
         Matcher<V, 1> matcher;
-        matcher.pushState({ literal, 1 });
+        matcher.pushState({ value, 1 });
         return matcher;
     }
 
@@ -165,8 +165,8 @@ public:
 
     template <size_t n, typename V, size_t N>
     static constexpr auto repeatNTimes(const Matcher<V, N>& matcher) {
-        Matcher<V, N * n> newMatcher(matcher);
-        for(size_t i = 1; i < n; i++) {
+        Matcher<V, N * n> newMatcher;
+        for(size_t i = 0; i < n; i++) {
             newMatcher.pushStates(matcher);
         }
         return newMatcher;

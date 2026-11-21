@@ -17,7 +17,7 @@ public:
 
     template <typename Iterator>
     constexpr Result<Iterator> matchFirst(Iterator begin, Iterator end) const {
-        if(begin == end) {
+        if(begin == end || size == 0) {
             return { std::move(end), canHaveEmptyMatches() };
         }
         for(; begin != end; begin++) {
@@ -40,7 +40,7 @@ public:
 
     template <typename Iterator>
     constexpr Result<Iterator> matchLast(Iterator begin, Iterator end) const {
-        if(begin == end) {
+        if(begin == end || size == 0) {
             return { std::move(end), canHaveEmptyMatches() };
         }
         Result<Iterator> current = end;
@@ -65,7 +65,7 @@ public:
 
     template <typename Iterator>
     std::vector<Result<Iterator>> matchAll(Iterator begin, Iterator end) const {
-        if(begin == end) {
+        if(begin == end || size == 0) {
             if(canHaveEmptyMatches()) {
                 return { { std::move(end), true } };
             }
@@ -92,7 +92,7 @@ public:
 
     template <typename Iterator>
     constexpr Result<Iterator> matchAt(Iterator begin, Iterator end) const {
-        if(begin == end) {
+        if(begin == end || size == 0) {
             return { std::move(end), canHaveEmptyMatches() };
         }
         return match(begin, end);
@@ -109,9 +109,13 @@ public:
 
 
     constexpr bool canHaveEmptyMatches() const {
-        std::array<bool, Capacity + 1> currentStates = { false };
-        followEmptyTransitions(0, currentStates);
-        return currentStates[size];
+        if constexpr (Capacity == 0) {
+            return true;
+        } else {
+            std::array<bool, Capacity + 1> currentStates = { false };
+            followEmptyTransitions(0, currentStates);
+            return currentStates[size];
+        }
     }
 
 
