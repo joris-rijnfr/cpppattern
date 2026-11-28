@@ -18,14 +18,23 @@ public:
     Pattern& operator=(Pattern&&) = delete;
 
 
+    /**
+     * @brief The result of a matching operation.
+     */
     template <typename Iterator>
     struct Result {
-        Iterator matchStart{};
-        bool matched = false;
-        size_t length = 0;
+        Iterator matchStart{};  // An iterator pointing to the first element of the match in the input.
+        bool matched = false;   // Indicates whether a match was found.
+        size_t length = 0;      // The number of elements in the match.
     };
 
 
+    /**
+     * @brief Creates a matcher that matches any single element that is equal to `value`.
+     * 
+     * @param value The value to match on.
+     * @return A matcher that matches any single element that is equal to `value`.
+     */
     template <typename V>
     static constexpr auto literal(const V value) {
         Matcher<V, 1> matcher;
@@ -34,6 +43,13 @@ public:
     }
 
 
+    /**
+     * @brief Creates a matcher that matches all arguments in sequence.
+     * 
+     * @param matcher The initial matcher.
+     * @param rest Additional matchers or values to concatenate.
+     * @return A matcher that matches all arguments in sequence.
+     */
     template <typename V, size_t N, typename... T>
     static constexpr auto concat(const Matcher<V, N>& matcher, const T&... rest) {
         if constexpr (sizeof...(T) == 0) {
@@ -48,6 +64,13 @@ public:
     }
 
 
+    /**
+     * @brief Creates a matcher that matches all arguments in sequence.
+     * 
+     * @param param An array whose elements will be concatenated.
+     * @param rest Additional matchers or values to concatenate.
+     * @return A matcher that matches all arguments in sequence.
+     */
     template <typename V, size_t N, typename... T>
     static constexpr auto concat(const std::array<V, N>& param, const T&... rest) {
         Matcher<V, N> matcher;
@@ -58,6 +81,13 @@ public:
     }
 
 
+    /**
+     * @brief Creates a matcher that matches all arguments in sequence.
+     * 
+     * @param param An array whose elements will be concatenated.
+     * @param rest Additional matchers or values to concatenate.
+     * @return A matcher that matches all arguments in sequence.
+     */
     template <typename V, size_t N, typename... T>
     static constexpr auto concat(const V (&param)[N], const T&... rest) {
         constexpr size_t length = std::is_same_v<char, V> ? N - 1 : N;
@@ -65,12 +95,30 @@ public:
     }
 
 
+    /**
+     * @brief Creates a matcher that matches all arguments in sequence.
+     * 
+     * @param param The initial value.
+     * @param rest Additional matchers or values to concatenate.
+     * @return A matcher that matches all arguments in sequence.
+     */
     template <typename V, typename... T>
     static constexpr auto concat(const V param, const T&... rest) {
         return concat(literal(param), rest...);
     }
 
 
+    /**
+     * @brief Creates a matcher that matches any of the arguments.
+     *
+     * The longest-match semantics of the matcher ensure that the longest
+     * match is found. The order of the arguments do not matter. It has no
+     * influence on the longest match between any of the arguments.
+     *
+     * @param matcher A matcher to use as possible matcher.
+     * @param rest Additional matchers or values use as possible matchers.
+     * @return A matcher that matches the longest possible match among the arguments.
+     */
     template <typename V, size_t N, typename... T>
     static constexpr auto anyLongest(const Matcher<V, N>& matcher, const T&... rest) {
         if constexpr (sizeof...(T) == 0) {
@@ -85,24 +133,63 @@ public:
     }
 
 
+    /**
+     * @brief Creates a matcher that matches any of the arguments.
+     *
+     * The longest-match semantics of the matcher ensure that the longest
+     * match is found. The order of the arguments do not matter. It has no
+     * influence on the longest match between any of the arguments.
+     *
+     * @param param An array whose elements will be concatenated and seen as a single sequence.
+     * @param rest Additional matchers or values use as possible matchers.
+     * @return A matcher that matches the longest possible match among the arguments.
+     */
     template <typename V, size_t N, typename... T>
     static constexpr auto anyLongest(const std::array<V, N>& param, const T&... rest) {
         return anyLongest(concat(param), rest...);
     }
 
 
+    /**
+     * @brief Creates a matcher that matches any of the arguments.
+     *
+     * The longest-match semantics of the matcher ensure that the longest
+     * match is found. The order of the arguments do not matter. It has no
+     * influence on the longest match between any of the arguments.
+     *
+     * @param param An array whose elements will be concatenated and seen as a single sequence.
+     * @param rest Additional matchers or values use as possible matchers.
+     * @return A matcher that matches the longest possible match among the arguments.
+     */
     template <typename V, size_t N, typename... T>
     static constexpr auto anyLongest(const V (&param)[N], const T&... rest) {
         return anyLongest(concat(param), rest...);
     }
 
 
+    /**
+     * @brief Creates a matcher that matches any of the arguments.
+     *
+     * The longest-match semantics of the matcher ensure that the longest
+     * match is found. The order of the arguments do not matter. It has no
+     * influence on the longest match between any of the arguments.
+     *
+     * @param param A single value to possibly match.
+     * @param rest Additional matchers or values use as possible matchers.
+     * @return A matcher that matches the longest possible match among the arguments.
+     */
     template <typename V, typename... T>
     static constexpr auto anyLongest(const V param, const T&... rest) {
         return anyLongest(literal(param), rest...);
     }
 
 
+    /**
+     * @brief Creates a matcher that optionally matches the argument.
+     *
+     * @param matcher The matcher to make optional.
+     * @return A matcher that matches the argument zero or one times.
+     */
     template <typename V, size_t N>
     static constexpr auto optional(const Matcher<V, N>& matcher) {
         Matcher<V, N + 1> newMatcher(matcher);
@@ -113,24 +200,48 @@ public:
     }
 
 
+    /**
+     * @brief Creates a matcher that optionally matches the argument.
+     *
+     * @param param An array whose elements will be concatenated.
+     * @return A matcher that matches the argument zero or one times.
+     */
     template <typename V, size_t N>
     static constexpr auto optional(const std::array<V, N>& param) {
         return optional(concat(param));
     }
 
 
+    /**
+     * @brief Creates a matcher that optionally matches the argument.
+     *
+     * @param param An array whose elements will be concatenated.
+     * @return A matcher that matches the argument zero or one times.
+     */
     template <typename V, size_t N>
     static constexpr auto optional(const V (&param)[N]) {
         return optional(concat(param));
     }
 
 
+    /**
+     * @brief Creates a matcher that optionally matches the argument.
+     *
+     * @param param The value to make optional.
+     * @return A matcher that matches the argument zero or one times.
+     */
     template <typename V>
     static constexpr auto optional(const V param) {
         return optional(literal(param));
     }
 
 
+    /**
+     * @brief Creates a matcher that matches the argument zero or more times.
+     *
+     * @param matcher The matcher to repeat.
+     * @return A matcher that matches the argument zero or more times.
+     */
     template <typename V, size_t N>
     static constexpr auto repeatZeroOrMoreTimes(const Matcher<V, N>& matcher) {
         Matcher<V, N + 2> newMatcher(matcher);
@@ -145,24 +256,50 @@ public:
     }
 
 
+    /**
+     * @brief Creates a matcher that matches the argument zero or more times.
+     *
+     * @param param An array whose elements will be concatenated.
+     * @return A matcher that matches the argument zero or more times.
+     */
     template <typename V, size_t N>
     static constexpr auto repeatZeroOrMoreTimes(const std::array<V, N>& param) {
         return repeatZeroOrMoreTimes(concat(param));
     }
 
 
+    /**
+     * @brief Creates a matcher that matches the argument zero or more times.
+     *
+     * @param param An array whose elements will be concatenated.
+     * @return A matcher that matches the argument zero or more times.
+     */
     template <typename V, size_t N>
     static constexpr auto repeatZeroOrMoreTimes(const V (&param)[N]) {
         return repeatZeroOrMoreTimes(concat(param));
     }
 
 
+    /**
+     * @brief Creates a matcher that matches the argument zero or more times.
+     *
+     * @param param The value to repeat.
+     * @return A matcher that matches the argument zero or more times.
+     */
     template <typename V>
     static constexpr auto repeatZeroOrMoreTimes(const V param) {
         return repeatZeroOrMoreTimes(literal(param));
     }
 
 
+    /**
+     * @brief Creates a matcher that matches the argument exactly `n` times.
+     *
+     * @tparam n The number of times to repeat the argument.
+     *
+     * @param matcher The matcher to repeat.
+     * @return A matcher that matches the argument exactly n times.
+     */
     template <size_t n, typename V, size_t N>
     static constexpr auto repeatNTimes(const Matcher<V, N>& matcher) {
         Matcher<V, N * n> newMatcher;
@@ -173,18 +310,42 @@ public:
     }
 
 
+    /**
+     * @brief Creates a matcher that matches the argument exactly `n` times.
+     *
+     * @tparam n The number of times to repeat the argument.
+     *
+     * @param param An array whose elements will be concatenated.
+     * @return A matcher that matches the argument exactly n times.
+     */
     template <size_t n, typename V, size_t N>
     static constexpr auto repeatNTimes(const std::array<V, N>& param) {
         return repeatNTimes<n>(concat(param));
     }
 
 
+    /**
+     * @brief Creates a matcher that matches the argument exactly `n` times.
+     *
+     * @tparam n The number of times to repeat the argument.
+     *
+     * @param param An array whose elements will be concatenated.
+     * @return A matcher that matches the argument exactly n times.
+     */
     template <size_t n, typename V, size_t N>
     static constexpr auto repeatNTimes(const V (&param)[N]) {
         return repeatNTimes<n>(concat(param));
     }
 
 
+    /**
+     * @brief Creates a matcher that matches the argument exactly `n` times.
+     *
+     * @tparam n The number of times to repeat the argument.
+     *
+     * @param param The value to repeat.
+     * @return A matcher that matches the argument exactly n times.
+     */
     template <size_t n, typename V>
     static constexpr auto repeatNTimes(const V param) {
         return repeatNTimes<n>(literal(param));

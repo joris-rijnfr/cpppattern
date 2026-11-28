@@ -15,6 +15,13 @@ public:
     friend class Pattern;
 
 
+    /**
+     * @brief Finds the match with the earliest starting position in the given input range.
+     *
+     * @param begin A forward iterator pointing to the beginning of the input range.
+     * @param end An iterator pointing to the end of the input range.
+     * @return The first match found in the input range, or a result indicating that no match was found.
+     */
     template <typename Iterator>
     constexpr Result<Iterator> matchFirst(Iterator begin, Iterator end) const {
         if(begin == end || size == 0) {
@@ -30,6 +37,12 @@ public:
     }
 
 
+    /**
+     * @brief Finds the match with the earliest starting position in the given input container.
+     *
+     * @param input The container to search for a match.
+     * @return The first match found in the input container, or a result indicating that no match was found.
+     */
     template <typename T>
     constexpr auto matchFirst(const T& input) const {
         using std::begin;
@@ -38,6 +51,13 @@ public:
     }
 
 
+    /**
+     * @brief Finds the match with the latest starting position in the given input range.
+     *
+     * @param begin An iterator pointing to the beginning of the input range.
+     * @param end A bidirectional iterator pointing to the end of the input range.
+     * @return The last match found in the input range, or a result indicating that no match was found.
+     */
     template <typename Iterator>
     constexpr Result<Iterator> matchLast(Iterator begin, Iterator end) const {
         if(begin == end || size == 0) {
@@ -55,6 +75,12 @@ public:
     }
 
 
+    /**
+     * @brief Finds the match with the latest starting position in the given input container.
+     *
+     * @param input The container to search for a match.
+     * @return The last match found in the input container, or a result indicating that no match was found.
+     */
     template <typename T>
     constexpr auto matchLast(const T& input) const {
         using std::begin;
@@ -63,6 +89,20 @@ public:
     }
 
 
+    /**
+     * @brief Finds all matches in the given input range.
+     *
+     * For every starting position, it tries to find a match.
+     * Consequently, matches with nearby starting positions and of
+     * sufficient length may have partially overlapping results.
+     * The returned vector only contains matches found. Every result
+     * in the vector has `matched == true`. If no matches are found,
+     * the returned vector is empty.
+     *
+     * @param begin A forward iterator pointing to the beginning of the input range.
+     * @param end An iterator pointing to the end of the input range.
+     * @return A vector containing all matches found in the input range.
+     */
     template <typename Iterator>
     std::vector<Result<Iterator>> matchAll(Iterator begin, Iterator end) const {
         if(begin == end || size == 0) {
@@ -82,6 +122,19 @@ public:
     }
 
 
+    /**
+     * @brief Finds all matches in the given input container.
+     *
+     * For every starting position, it tries to find a match.
+     * Consequently, matches with nearby starting positions and of
+     * sufficient length may have partially overlapping results.
+     * The returned vector only contains matches found. Every result
+     * in the vector has `matched == true`. If no matches are found,
+     * the returned vector is empty.
+     *
+     * @param input The container to search for matches.
+     * @return A vector containing all matches found in the input container.
+     */
     template <typename T>
     constexpr auto matchAll(const T& input) const {
         using std::begin;
@@ -90,6 +143,13 @@ public:
     }
 
 
+    /**
+     * @brief Finds a match at the given position in the input range.
+     *
+     * @param begin A forward iterator pointing to the beginning of the input range.
+     * @param end An iterator pointing to the end of the input range.
+     * @return The match found at the given position, or a result indicating that no match was found.
+     */
     template <typename Iterator>
     constexpr Result<Iterator> matchAt(Iterator begin, Iterator end) const {
         if(begin == end || size == 0) {
@@ -99,6 +159,13 @@ public:
     }
 
 
+    /**
+     * @brief Finds a match at the given index in the input container.
+     *
+     * @param input The container to search for a match.
+     * @param index The zero-based index at which to search for a match.
+     * @return The match found at the given index, or a result indicating that no match was found.
+     */
     template <typename T>
     constexpr auto matchAt(const T& input, size_t index) const {
         using std::begin;
@@ -108,6 +175,11 @@ public:
     }
 
 
+    /**
+     * @brief Determines whether the matcher can match an empty sequence.
+     *
+     * @return `true` if the matcher can match an empty sequence, otherwise `false`.
+     */
     constexpr bool canHaveEmptyMatches() const {
         if constexpr (Capacity == 0) {
             return true;
@@ -209,7 +281,6 @@ private:
 
 
     constexpr void followEmptyTransitions(StateIndex index, std::array<bool, Capacity + 1>& nextStates) const {
-        State state = states[index];
         if(nextStates[index]) {
             return;
         }
@@ -217,6 +288,7 @@ private:
         if(index == size) {
             return;
         }
+        State state = states[index];
         for(EpsilonSize i = 0; i < state.epsilonSize; i++) {
             followEmptyTransitions(state.epsilon[i], nextStates);
         }
