@@ -10,7 +10,7 @@ Pattern creation and most matching functions are implemented as `constexpr`. Thi
 
 
 
-## Example
+### Example
 
 The pattern `(Hello|Goodbye) Worlds?` (regex notation) matched against a string:
 
@@ -83,6 +83,7 @@ if(result.matched) {
     - [`anyLongest`](#anylongest)
     - [`optional`](#optional)
     - [`repeatZeroOrMoreTimes`](#repeatzeroormoretimes)
+    - [`repeatOneOrMoreTimes`](#repeatoneormoretimes)
     - [`repeatNTimes`](#repeatntimes)
 - [Finding matches](#finding-matches)
   - [Function reference](#function-reference-1)
@@ -182,6 +183,19 @@ Creates a matcher that matches the argument zero or more times.
 The matcher returns the longest valid match, consisting of as many consecutive repetitions as possible. It can also match an empty sequence if the argument cannot be matched at all.
 
 For example, `Pattern::repeatZeroOrMoreTimes(42)` matches `[]`, `[42]`, `[42, 42]`, `[42, 42, 42]`, etc.
+
+
+#### `repeatOneOrMoreTimes`
+
+```cpp
+constexpr auto Pattern::repeatOneOrMoreTimes(param)
+```
+
+Creates a matcher that matches the argument one or more times.
+
+The matcher returns the longest valid match, consisting of as many consecutive repetitions as possible. The argument must be matched at least once.
+
+For example, `Pattern::repeatOneOrMoreTimes(42)` matches `[42]`, `[42, 42]`, `[42, 42, 42]`, `[42, 42, 42, 42]` etc.
 
 
 #### `repeatNTimes`

@@ -24,9 +24,6 @@ public:
      */
     template <typename Iterator>
     constexpr Result<Iterator> matchFirst(Iterator begin, Iterator end) const {
-        if(begin == end || size == 0) {
-            return { std::move(end), canHaveEmptyMatches() };
-        }
         for(; begin != end; begin++) {
             Result<Iterator> result = match(begin, end);
             if(result.matched) {
@@ -60,9 +57,6 @@ public:
      */
     template <typename Iterator>
     constexpr Result<Iterator> matchLast(Iterator begin, Iterator end) const {
-        if(begin == end || size == 0) {
-            return { std::move(end), canHaveEmptyMatches() };
-        }
         auto current = end;
         do {
             current--;
@@ -105,12 +99,6 @@ public:
      */
     template <typename Iterator>
     std::vector<Result<Iterator>> matchAll(Iterator begin, Iterator end) const {
-        if(begin == end || size == 0) {
-            if(canHaveEmptyMatches()) {
-                return { { std::move(end), true } };
-            }
-            return { };
-        }
         std::vector<Result<Iterator>> results;
         for(; begin != end; begin++) {
             Result<Iterator> result = match(begin, end);
@@ -152,9 +140,6 @@ public:
      */
     template <typename Iterator>
     constexpr Result<Iterator> matchAt(Iterator begin, Iterator end) const {
-        if(begin == end || size == 0) {
-            return { std::move(end), canHaveEmptyMatches() };
-        }
         return match(begin, end);
     }
 
@@ -195,7 +180,7 @@ public:
     void printDebugInfo() const {
         std::cout << "digraph NFA {\n";
         std::cout << "    rankdir=\"LR\";\n    node [shape=box, style=rounded];\n";
-        for(StateIndex i = 0; i < states.size(); i++) {
+        for(StateIndex i = 0; i < size; i++) {
             State state = states[i];
             if(state.literalTarget != NO_STATE) {
                 std::cout << "    " << i << " -> " << state.literalTarget << " [label=\"'" << state.literal << "'\"];\n";
@@ -241,7 +226,7 @@ private:
     constexpr Result<Iterator> match(Iterator begin, Iterator end) const {
         std::array<bool, Capacity + 1> currentStates = { false };
         followEmptyTransitions(0, currentStates);
-        Result<Iterator> result = { begin };
+        Result<Iterator> result = { begin, currentStates[size] };
         size_t matchLength = 0;
         for(; begin != end; begin++) {
             matchLength++;

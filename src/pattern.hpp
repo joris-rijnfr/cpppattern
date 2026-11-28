@@ -125,7 +125,7 @@ public:
             return matcher;
         } else {
             auto combinedMatcherRest = anyLongest(rest...);
-            if(matcher.states[0].epsilonSize > combinedMatcherRest.states[0].epsilonSize) {
+            if(matcher.size > 0 && combinedMatcherRest.size > 0 && matcher.states[0].epsilonSize > combinedMatcherRest.states[0].epsilonSize) {
                 return combineAnyLongest(matcher, combinedMatcherRest);
             }
             return combineAnyLongest(combinedMatcherRest, matcher);
@@ -293,6 +293,58 @@ public:
 
 
     /**
+     * @brief Creates a matcher that matches the argument one or more times.
+     *
+     * @param matcher The matcher to repeat.
+     * @return A matcher that matches the argument one or more times.
+     */
+    template <typename V, size_t N>
+    static constexpr auto repeatOneOrMoreTimes(const Matcher<V, N>& matcher) {
+        Matcher<V, N + 1> newMatcher(matcher);
+        if(!newMatcher.hasEpsilonTransitionsToTargets(newMatcher.size - 1, {0, newMatcher.size})) {
+            newMatcher.pushState({ {}, NO_STATE, 2, {0, newMatcher.size + 1} });
+        }
+        return newMatcher;
+    }
+
+
+    /**
+     * @brief Creates a matcher that matches the argument one or more times.
+     *
+     * @param param An array whose elements will be concatenated.
+     * @return A matcher that matches the argument one or more times.
+     */
+    template <typename V, size_t N>
+    static constexpr auto repeatOneOrMoreTimes(const std::array<V, N>& param) {
+        return repeatOneOrMoreTimes(concat(param));
+    }
+
+
+    /**
+     * @brief Creates a matcher that matches the argument one or more times.
+     *
+     * @param param An array whose elements will be concatenated.
+     * @return A matcher that matches the argument one or more times.
+     */
+    template <typename V, size_t N>
+    static constexpr auto repeatOneOrMoreTimes(const V (&param)[N]) {
+        return repeatOneOrMoreTimes(concat(param));
+    }
+
+
+    /**
+     * @brief Creates a matcher that matches the argument one or more times.
+     *
+     * @param param The value to repeat.
+     * @return A matcher that matches the argument one or more times.
+     */
+    template <typename V>
+    static constexpr auto repeatOneOrMoreTimes(const V param) {
+        return repeatOneOrMoreTimes(literal(param));
+    }
+
+
+    /**
      * @brief Creates a matcher that matches the argument exactly `n` times.
      *
      * @tparam n The number of times to repeat the argument.
@@ -375,10 +427,10 @@ private:
 
     template <typename V, size_t N1, size_t N2>
     static constexpr auto combineAnyLongest(const Matcher<V, N1>& a, const Matcher<V, N2>& b) {
-        Matcher<V, N1 + N2 + 1> newMatcher;
-        newMatcher.pushStates(a);
+        Matcher<V, N1 + N2 + 1> newMatcher(a);
+        // Must happen before b is pushed otherwise transitions to 0 (in b) will suddenly point to ACCEPT
+        newMatcher.updateTransitions(a.size, a.size + b.size);
         newMatcher.pushStates(b);
-        newMatcher.updateTransitions(a.size, newMatcher.size);
         if(!newMatcher.tryAddEpsilon(0, a.size)) {
             newMatcher.insertState(0, { {}, NO_STATE, 2, {1, a.size + 1} });
         }
