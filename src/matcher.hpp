@@ -63,14 +63,14 @@ public:
         if(begin == end || size == 0) {
             return { std::move(end), canHaveEmptyMatches() };
         }
-        Result<Iterator> current = end;
-        current--;
-        for(; current != begin; current--) {
+        auto current = end;
+        do {
+            current--;
             Result<Iterator> result = match(current, end);
             if(result.matched) {
                 return result;
             }
-        }
+        } while(current != begin);
         return { std::move(end) };
     }
 
